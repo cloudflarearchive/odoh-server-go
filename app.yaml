@@ -1,0 +1,5 @@
+# [START runtime]
+# service: odoh-proxy
+runtime: go112
+# env: flex
+# [END runtime]
