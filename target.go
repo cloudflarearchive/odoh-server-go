@@ -25,13 +25,14 @@ package main
 import (
 	"encoding/base64"
 	"fmt"
-	odoh "github.com/cloudflare/odoh-go"
-	"github.com/miekg/dns"
 	"io/ioutil"
 	"log"
 	"math/rand"
 	"net/http"
 	"time"
+
+	odoh "github.com/cloudflare/odoh-go"
+	"github.com/miekg/dns"
 )
 
 type targetServer struct {
@@ -193,7 +194,7 @@ func (s *targetServer) parseObliviousQueryFromRequest(r *http.Request) (*odoh.Ob
 	obliviousMessage, err := odoh.UnmarshalDNSMessage(encryptedMessageBytes)
 	if err != nil {
 		log.Println("Failed decoding oblivious DNS message:", err)
-		return nil, odoh.ResponseContext{},err
+		return nil, odoh.ResponseContext{}, err
 	}
 
 	return s.odohKeyPair.DecryptQuery(obliviousMessage)
@@ -298,12 +299,7 @@ func (s *targetServer) serverWebPvD(w http.ResponseWriter, r *http.Request) {
 func (s *targetServer) targetQueryHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s Handling %s\n", r.Method, r.URL.Path)
 
-	targetName := r.URL.Query().Get("targethost")
-	if targetName != "" {
-		log.Printf("Proxy request made via dns-query request interface. Use /dns-query instead")
-		http.Error(w, http.StatusText(http.StatusUseProxy), http.StatusUseProxy)
-		// Clients should use the /proxy route instead of the query route.
-	} else if r.Header.Get("Content-Type") == "application/dns-message" {
+	if r.Header.Get("Content-Type") == "application/dns-message" {
 		s.plainQueryHandler(w, r)
 	} else if r.Header.Get("Content-Type") == "application/oblivious-dns-message" {
 		s.obliviousQueryHandler(w, r)

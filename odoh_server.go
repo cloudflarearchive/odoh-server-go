@@ -26,12 +26,13 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	odoh "github.com/cloudflare/odoh-go"
-	"github.com/cisco/go-hpke"
 	"log"
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/cisco/go-hpke"
+	odoh "github.com/cloudflare/odoh-go"
 )
 
 const (
@@ -41,21 +42,20 @@ const (
 	aeadID = hpke.AEAD_AESGCM128
 
 	// HTTP constants. Fill in your proxy and target here.
-	defaultPort = "8080"
-	proxyURI          = "https://dnstarget.example.net"
-	targetURI         = "https://dnsproxy.example.net"
-	queryEndpoint     = "/dns-query"
-	proxyEndpoint     = "/proxy"
-	healthEndpoint    = "/health"
-	configEndpoint 	  = "/.well-known/odohconfigs"
+	defaultPort    = "8080"
+	proxyURI       = "https://dnstarget.example.net"
+	targetURI      = "https://dnsproxy.example.net"
+	queryEndpoint  = "/dns-query"
+	healthEndpoint = "/health"
+	configEndpoint = "/.well-known/odohconfigs"
 
 	// WebPvD configuration. Fill in your values here.
 	webPvDString = `"{ "identifier" : "github.com", "expires" : "2019-08-23T06:00:00Z", "prefixes" : [ ], "dnsZones" : [ "odoh.example.net" ] }"`
 
 	// Environment variables
-	secretSeedEnvironmentVariable = "SEED_SECRET_KEY"
-	targetNameEnvironmentVariable = "TARGET_INSTANCE_NAME"
-	experimentIDEnvironmentVariable = "EXPERIMENT_ID"
+	secretSeedEnvironmentVariable    = "SEED_SECRET_KEY"
+	targetNameEnvironmentVariable    = "TARGET_INSTANCE_NAME"
+	experimentIDEnvironmentVariable  = "EXPERIMENT_ID"
 	telemetryTypeEnvironmentVariable = "TELEMETRY_TYPE"
 )
 
@@ -68,14 +68,31 @@ type odohServer struct {
 	endpoints map[string]string
 	Verbose   bool
 	target    *targetServer
+	proxy     *proxyServer
 	DOHURI    string
+}
+
+func (s odohServer) queryHandler(w http.ResponseWriter, r *http.Request) {
+	targetName := r.URL.Query().Get("targethost")
+	targetPath := r.URL.Query().Get("targetpath")
+	if targetName != "" {
+		if targetPath == "" {
+			targetPath = queryEndpoint
+		}
+		s.proxy.proxyQueryHandler(w, r)
+	} else if targetPath == "" {
+		s.target.targetQueryHandler(w, r)
+	} else {
+		log.Printf("targethost empty, but targetpath specified: this is invalid")
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+	}
 }
 
 func (s odohServer) indexHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s Handling %s\n", r.Method, r.URL.Path)
 	fmt.Fprint(w, "ODOH service\n")
 	fmt.Fprint(w, "----------------\n")
-	fmt.Fprintf(w, "Proxy endpoint: https://%s:%s/%s{?targethost,targetpath}\n", r.URL.Hostname(), r.URL.Port(), s.endpoints[proxyEndpoint])
+	fmt.Fprintf(w, "Proxy endpoint: https://%s:%s/%s{?targethost,targetpath}\n", r.URL.Hostname(), r.URL.Port(), s.endpoints[queryEndpoint])
 	fmt.Fprintf(w, "Target endpoint: https://%s:%s/%s{?dns}\n", r.URL.Hostname(), r.URL.Port(), s.endpoints[queryEndpoint])
 	fmt.Fprint(w, "----------------\n")
 }
@@ -129,7 +146,7 @@ func main() {
 
 	endpoints := make(map[string]string)
 	endpoints["Target"] = queryEndpoint
-	endpoints["Proxy"] = proxyEndpoint
+	endpoints["Proxy"] = queryEndpoint
 	endpoints["Health"] = healthEndpoint
 	endpoints["Config"] = configEndpoint
 
@@ -164,11 +181,11 @@ func main() {
 	server := odohServer{
 		endpoints: endpoints,
 		target:    target,
+		proxy:     proxy,
 		DOHURI:    fmt.Sprintf("%s/%s", targetURI, queryEndpoint),
 	}
 
-	http.HandleFunc(queryEndpoint, target.targetQueryHandler)
-	http.HandleFunc(proxyEndpoint, proxy.proxyQueryHandler)
+	http.HandleFunc(queryEndpoint, server.queryHandler)
 	http.HandleFunc(healthEndpoint, server.healthCheckHandler)
 	http.HandleFunc(configEndpoint, target.configHandler)
 	http.HandleFunc("/", server.indexHandler)
