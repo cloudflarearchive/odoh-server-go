@@ -221,13 +221,14 @@ func (s *targetServer) obliviousQueryHandler(w http.ResponseWriter, r *http.Requ
 	timestamp.Start = requestReceivedTime.UnixNano()
 	obliviousQuery, responseContext, err := s.parseObliviousQueryFromRequest(r)
 	if err != nil {
+		log.Println("parseObliviousQueryFromRequest failed:", err)
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
 
 	query, err := decodeDNSQuestion(obliviousQuery.Message())
 	if err != nil {
-		log.Println("Failed decoding DNS query:", err)
+		log.Println("decodeDNSQuestion failed:", err)
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
@@ -239,7 +240,7 @@ func (s *targetServer) obliviousQueryHandler(w http.ResponseWriter, r *http.Requ
 	resolverChosen := s.resolver[chosenResolver]
 	packedResponse, err := s.resolveQueryWithResolver(query, resolverChosen)
 	if err != nil {
-		log.Println("Failed resolving DNS query:", err)
+		log.Println("resolveQueryWithResolver failed:", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -249,7 +250,7 @@ func (s *targetServer) obliviousQueryHandler(w http.ResponseWriter, r *http.Requ
 
 	obliviousResponse, err := s.createObliviousResponseForQuery(responseContext, packedResponse)
 	if err != nil {
-		log.Println("Failed creating DNS oblivious DNS response:", err)
+		log.Println("createObliviousResponseForQuery failed:", err)
 		timestamp.TargetAnswerEncryptionTime = 0
 		timestamp.EndTime = 0
 		exp.Timestamp = timestamp
@@ -299,15 +300,13 @@ func (s *targetServer) targetQueryHandler(w http.ResponseWriter, r *http.Request
 
 	targetName := r.URL.Query().Get("targethost")
 	if targetName != "" {
-		log.Printf("Proxy request made via dns-query request interface. Use /proxy instead")
+		log.Printf("Proxy request made via dns-query request interface. Use /dns-query instead")
 		http.Error(w, http.StatusText(http.StatusUseProxy), http.StatusUseProxy)
 		// Clients should use the /proxy route instead of the query route.
 	} else if r.Header.Get("Content-Type") == "application/dns-message" {
 		s.plainQueryHandler(w, r)
 	} else if r.Header.Get("Content-Type") == "application/oblivious-dns-message" {
 		s.obliviousQueryHandler(w, r)
-	} else if r.Header.Get("Content-Type") == "application/pvd+json" {
-
 	} else {
 		log.Printf("Invalid content type: %s", r.Header.Get("Content-Type"))
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
