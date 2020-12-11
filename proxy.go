@@ -25,72 +25,91 @@ package main
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 )
 
 type proxyServer struct {
-	client *http.Client
+	client    *http.Client
+	lastError error
 }
 
-func forwardProxyRequest(client *http.Client, targetName string, targetPath string, body []byte, headerContentType string) ([]byte, error) {
-	req, err := http.NewRequest("POST", "https://"+targetName+targetPath, bytes.NewReader(body))
+var (
+	ErrWrongMethod       = fmt.Errorf("Unsupported method")
+	ErrMissingTargetHost = fmt.Errorf("Missing proxy targethost query parameter")
+	ErrMissingTargetPath = fmt.Errorf("Missing proxy targetpath query parameter")
+	ErrEmptyRequestBody  = fmt.Errorf("Missing request body")
+)
+
+func forwardProxyRequest(client *http.Client, targetName string, targetPath string, body []byte, headerContentType string) (*http.Response, error) {
+	targetURL := "https://" + targetName + targetPath
+	req, err := http.NewRequest("POST", targetURL, bytes.NewReader(body))
 	if err != nil {
 		log.Println("Failed creating target POST request")
 		return nil, errors.New("failed creating target POST request")
 	}
 	req.Header.Set("Content-Type", headerContentType)
 
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Printf("Failed to send proxied message %v\n", err)
-		return nil, errors.New("failed to send proxied message")
-	}
-	defer resp.Body.Close()
-
-	responseBody, err := ioutil.ReadAll(resp.Body)
-	return responseBody, err
+	return client.Do(req)
 }
 
 func (p *proxyServer) proxyQueryHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s Handling %s\n", r.Method, r.URL.Path)
 
 	if r.Method != "POST" {
-		log.Printf("Unsupported method for %s", r.URL.Path)
+		p.lastError = ErrWrongMethod
+		log.Printf(p.lastError.Error())
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
 
 	targetName := r.URL.Query().Get("targethost")
 	if targetName == "" {
-		log.Println("Missing proxy targethost query parameter in POST request")
+		p.lastError = ErrMissingTargetHost
+		log.Printf(p.lastError.Error())
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
 
 	targetPath := r.URL.Query().Get("targetpath")
 	if targetPath == "" {
-		log.Println("Missing proxy targetpath query parameter in POST request")
+		p.lastError = ErrMissingTargetPath
+		log.Printf(p.lastError.Error())
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
 
 	defer r.Body.Close()
 	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		log.Println("Missing proxy message body in POST request")
+	if err != nil || len(body) == 0 {
+		p.lastError = ErrEmptyRequestBody
+		log.Printf(p.lastError.Error())
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
 
 	headerContentType := r.Header.Get("Content-Type")
 
-	responseBody, err := forwardProxyRequest(p.client, targetName, targetPath, body, headerContentType)
+	response, err := forwardProxyRequest(p.client, targetName, targetPath, body, headerContentType)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
+
+	if response.StatusCode != 200 {
+		http.Error(w, http.StatusText(response.StatusCode), response.StatusCode)
+		return
+	}
+
+	defer response.Body.Close()
+	responseBody, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", headerContentType)
 	w.Write(responseBody)
 }
