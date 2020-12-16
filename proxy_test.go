@@ -43,8 +43,6 @@ func (t testTarget) handleRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Println("here")
-
 	headerContentType := r.Header.Get("Content-Type")
 	w.Header().Set("Content-Type", headerContentType)
 	w.Write(body)
