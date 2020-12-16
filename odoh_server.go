@@ -41,10 +41,15 @@ const (
 	kdfID  = hpke.KDF_HKDF_SHA256
 	aeadID = hpke.AEAD_AESGCM128
 
+	// keying material (seed) should have as many bits of entropy as the bit
+	// length of the x25519 secret key
+	defaultSeedLength = 32
+
 	// HTTP constants. Fill in your proxy and target here.
 	defaultPort    = "8080"
 	proxyURI       = "https://dnstarget.example.net"
 	targetURI      = "https://dnsproxy.example.net"
+	proxyEndpoint  = "/proxy"
 	queryEndpoint  = "/dns-query"
 	healthEndpoint = "/health"
 	configEndpoint = "/.well-known/odohconfigs"
@@ -72,7 +77,7 @@ type odohServer struct {
 	DOHURI    string
 }
 
-func (s odohServer) queryHandler(w http.ResponseWriter, r *http.Request) {
+func (s odohServer) proxyHandler(w http.ResponseWriter, r *http.Request) {
 	targetName := r.URL.Query().Get("targethost")
 	targetPath := r.URL.Query().Get("targetpath")
 	if targetName != "" {
@@ -80,20 +85,22 @@ func (s odohServer) queryHandler(w http.ResponseWriter, r *http.Request) {
 			targetPath = queryEndpoint
 		}
 		s.proxy.proxyQueryHandler(w, r)
-	} else if targetPath == "" {
-		s.target.targetQueryHandler(w, r)
 	} else {
-		log.Printf("targethost empty, but targetpath specified: this is invalid")
+		log.Printf("targethost and targetpath cannot be empty for proxy request")
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 	}
+}
+
+func (s odohServer) queryHandler(w http.ResponseWriter, r *http.Request) {
+	s.target.targetQueryHandler(w, r)
 }
 
 func (s odohServer) indexHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s Handling %s\n", r.Method, r.URL.Path)
 	fmt.Fprint(w, "ODOH service\n")
 	fmt.Fprint(w, "----------------\n")
-	fmt.Fprintf(w, "Proxy endpoint: https://%s:%s/%s{?targethost,targetpath}\n", r.URL.Hostname(), r.URL.Port(), s.endpoints[queryEndpoint])
-	fmt.Fprintf(w, "Target endpoint: https://%s:%s/%s{?dns}\n", r.URL.Hostname(), r.URL.Port(), s.endpoints[queryEndpoint])
+	fmt.Fprintf(w, "Proxy endpoint: https://%s%s{?targethost,targetpath}\n", r.Host, s.endpoints["Proxy"])
+	fmt.Fprintf(w, "Target endpoint: https://%s%s{?dns}\n", r.Host, s.endpoints["Target"])
 	fmt.Fprint(w, "----------------\n")
 }
 
@@ -117,7 +124,7 @@ func main() {
 			panic(err)
 		}
 	} else {
-		seed = make([]byte, 16)
+		seed = make([]byte, defaultSeedLength)
 		rand.Read(seed)
 	}
 
@@ -125,7 +132,7 @@ func main() {
 	if serverNameSetting := os.Getenv(targetNameEnvironmentVariable); serverNameSetting != "" {
 		serverName = serverNameSetting
 	} else {
-		serverName = "server_target_localhost"
+		serverName = "server_localhost"
 	}
 	log.Printf("Setting Server Name as %v", serverName)
 
@@ -146,7 +153,7 @@ func main() {
 
 	endpoints := make(map[string]string)
 	endpoints["Target"] = queryEndpoint
-	endpoints["Proxy"] = queryEndpoint
+	endpoints["Proxy"] = proxyEndpoint
 	endpoints["Health"] = healthEndpoint
 	endpoints["Config"] = configEndpoint
 
@@ -185,6 +192,7 @@ func main() {
 		DOHURI:    fmt.Sprintf("%s/%s", targetURI, queryEndpoint),
 	}
 
+	http.HandleFunc(proxyEndpoint, server.proxyHandler)
 	http.HandleFunc(queryEndpoint, server.queryHandler)
 	http.HandleFunc(healthEndpoint, server.healthCheckHandler)
 	http.HandleFunc(configEndpoint, target.configHandler)

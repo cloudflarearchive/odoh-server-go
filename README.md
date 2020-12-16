@@ -36,8 +36,10 @@ To run locally build and run the project using
 
 ```shell
 go build
-PORT=8080 ./odoh-server
+PORT=8080 ./odoh-server-go
 ```
+
+By default, the proxy listens on `/proxy` and the target listens on `/dns-query`.
 
 ## Reverse proxy
 
