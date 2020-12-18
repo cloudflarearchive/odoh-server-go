@@ -77,24 +77,6 @@ type odohServer struct {
 	DOHURI    string
 }
 
-func (s odohServer) proxyHandler(w http.ResponseWriter, r *http.Request) {
-	targetName := r.URL.Query().Get("targethost")
-	targetPath := r.URL.Query().Get("targetpath")
-	if targetName != "" {
-		if targetPath == "" {
-			targetPath = queryEndpoint
-		}
-		s.proxy.proxyQueryHandler(w, r)
-	} else {
-		log.Printf("targethost and targetpath cannot be empty for proxy request")
-		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-	}
-}
-
-func (s odohServer) queryHandler(w http.ResponseWriter, r *http.Request) {
-	s.target.targetQueryHandler(w, r)
-}
-
 func (s odohServer) indexHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s Handling %s\n", r.Method, r.URL.Path)
 	fmt.Fprint(w, "ODOH service\n")
@@ -192,8 +174,8 @@ func main() {
 		DOHURI:    fmt.Sprintf("%s/%s", targetURI, queryEndpoint),
 	}
 
-	http.HandleFunc(proxyEndpoint, server.proxyHandler)
-	http.HandleFunc(queryEndpoint, server.queryHandler)
+	http.HandleFunc(proxyEndpoint, server.proxy.proxyQueryHandler)
+	http.HandleFunc(queryEndpoint, server.target.targetQueryHandler)
 	http.HandleFunc(healthEndpoint, server.healthCheckHandler)
 	http.HandleFunc(configEndpoint, target.configHandler)
 	http.HandleFunc("/", server.indexHandler)
