@@ -291,11 +291,6 @@ func (s *targetServer) obliviousQueryHandler(w http.ResponseWriter, r *http.Requ
 	w.Write(packedResponseMessage)
 }
 
-func (s *targetServer) serverWebPvD(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", r.Header.Get("Content-Type"))
-	w.Write([]byte(webPvDString))
-}
-
 func (s *targetServer) targetQueryHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s Handling %s\n", r.Method, r.URL.Path)
 
