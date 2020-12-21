@@ -37,7 +37,7 @@ import (
 
 type targetServer struct {
 	verbose            bool
-	resolver           []*targetResolver
+	resolver           []resolver
 	odohKeyPair        odoh.ObliviousDoHKeyPair
 	telemetryClient    *telemetry
 	serverInstanceName string
@@ -52,7 +52,7 @@ func decodeDNSQuestion(encodedMessage []byte) (*dns.Msg, error) {
 
 func (s *targetServer) parseQueryFromRequest(r *http.Request) (*dns.Msg, error) {
 	switch r.Method {
-	case "GET":
+	case http.MethodGet:
 		var queryBody string
 		if queryBody = r.URL.Query().Get("dns"); queryBody == "" {
 			return nil, fmt.Errorf("Missing DNS query parameter in GET request")
@@ -64,7 +64,7 @@ func (s *targetServer) parseQueryFromRequest(r *http.Request) (*dns.Msg, error) 
 		}
 
 		return decodeDNSQuestion(encodedMessage)
-	case "POST":
+	case http.MethodPost:
 		if r.Header.Get("Content-Type") != "application/dns-message" {
 			return nil, fmt.Errorf("incorrect content type, expected 'application/dns-message', got %s", r.Header.Get("Content-Type"))
 		}
@@ -109,8 +109,8 @@ func (s *targetServer) resolveQuery(query *dns.Msg, chosenResolver int) ([]byte,
 	return packedResponse, err
 }
 
-func (s *targetServer) resolveQueryWithResolver(query *dns.Msg, resolver *targetResolver) ([]byte, error) {
-	packedQuery, err := query.Pack()
+func (s *targetServer) resolveQueryWithResolver(q *dns.Msg, r resolver) ([]byte, error) {
+	packedQuery, err := q.Pack()
 	if err != nil {
 		log.Println("Failed encoding DNS query:", err)
 		return nil, err
@@ -121,7 +121,7 @@ func (s *targetServer) resolveQueryWithResolver(query *dns.Msg, resolver *target
 	}
 
 	start := time.Now()
-	response, err := resolver.resolve(query)
+	response, err := r.resolve(q)
 	elapsed := time.Now().Sub(start)
 
 	packedResponse, err := response.Pack()
@@ -170,7 +170,7 @@ func (s *targetServer) plainQueryHandler(w http.ResponseWriter, r *http.Request)
 	timestamp.EndTime = endTime
 
 	exp.Timestamp = timestamp
-	exp.Resolver = s.resolver[chosenResolver].getResolverServerName()
+	exp.Resolver = s.resolver[chosenResolver].name()
 	exp.Status = true
 
 	if s.telemetryClient.logClient != nil {
@@ -278,7 +278,7 @@ func (s *targetServer) obliviousQueryHandler(w http.ResponseWriter, r *http.Requ
 	timestamp.EndTime = returnResponseTime
 
 	exp.Timestamp = timestamp
-	exp.Resolver = s.resolver[chosenResolver].getResolverServerName()
+	exp.Resolver = s.resolver[chosenResolver].name()
 	exp.Status = true
 
 	if s.telemetryClient.logClient != nil {

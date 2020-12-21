@@ -139,7 +139,7 @@ func main() {
 	endpoints["Health"] = healthEndpoint
 	endpoints["Config"] = configEndpoint
 
-	resolversInUse := make([]*targetResolver, len(nameServers))
+	resolversInUse := make([]resolver, len(nameServers))
 
 	for index := 0; index < len(nameServers); index++ {
 		resolver := &targetResolver{
