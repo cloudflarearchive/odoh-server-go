@@ -37,10 +37,10 @@ type proxyServer struct {
 }
 
 var (
-	ErrWrongMethod       = fmt.Errorf("Unsupported method")
-	ErrMissingTargetHost = fmt.Errorf("Missing proxy targethost query parameter")
-	ErrMissingTargetPath = fmt.Errorf("Missing proxy targetpath query parameter")
-	ErrEmptyRequestBody  = fmt.Errorf("Missing request body")
+	errWrongMethod       = fmt.Errorf("Unsupported method")
+	errMissingTargetHost = fmt.Errorf("Missing proxy targethost query parameter")
+	errMissingTargetPath = fmt.Errorf("Missing proxy targetpath query parameter")
+	errEmptyRequestBody  = fmt.Errorf("Missing request body")
 )
 
 func forwardProxyRequest(client *http.Client, targetName string, targetPath string, body []byte, headerContentType string) (*http.Response, error) {
@@ -59,7 +59,7 @@ func (p *proxyServer) proxyQueryHandler(w http.ResponseWriter, r *http.Request) 
 	log.Printf("%s Handling %s\n", r.Method, r.URL.Path)
 
 	if r.Method != "POST" {
-		p.lastError = ErrWrongMethod
+		p.lastError = errWrongMethod
 		log.Printf(p.lastError.Error())
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
@@ -67,7 +67,7 @@ func (p *proxyServer) proxyQueryHandler(w http.ResponseWriter, r *http.Request) 
 
 	targetName := r.URL.Query().Get("targethost")
 	if targetName == "" {
-		p.lastError = ErrMissingTargetHost
+		p.lastError = errMissingTargetHost
 		log.Printf(p.lastError.Error())
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
@@ -75,7 +75,7 @@ func (p *proxyServer) proxyQueryHandler(w http.ResponseWriter, r *http.Request) 
 
 	targetPath := r.URL.Query().Get("targetpath")
 	if targetPath == "" {
-		p.lastError = ErrMissingTargetPath
+		p.lastError = errMissingTargetPath
 		log.Printf(p.lastError.Error())
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
@@ -84,7 +84,7 @@ func (p *proxyServer) proxyQueryHandler(w http.ResponseWriter, r *http.Request) 
 	defer r.Body.Close()
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil || len(body) == 0 {
-		p.lastError = ErrEmptyRequestBody
+		p.lastError = errEmptyRequestBody
 		log.Printf(p.lastError.Error())
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
