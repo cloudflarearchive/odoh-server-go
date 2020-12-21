@@ -44,6 +44,11 @@ type targetServer struct {
 	experimentId       string
 }
 
+const (
+	dnsMessageContentType  = "application/dns-message"
+	odohMessageContentType = "application/oblivious-dns-message"
+)
+
 func decodeDNSQuestion(encodedMessage []byte) (*dns.Msg, error) {
 	msg := &dns.Msg{}
 	err := msg.Unpack(encodedMessage)
@@ -65,8 +70,8 @@ func (s *targetServer) parseQueryFromRequest(r *http.Request) (*dns.Msg, error) 
 
 		return decodeDNSQuestion(encodedMessage)
 	case http.MethodPost:
-		if r.Header.Get("Content-Type") != "application/dns-message" {
-			return nil, fmt.Errorf("incorrect content type, expected 'application/dns-message', got %s", r.Header.Get("Content-Type"))
+		if r.Header.Get("Content-Type") != dnsMessageContentType {
+			return nil, fmt.Errorf("incorrect content type, expected '%s', got %s", dnsMessageContentType, r.Header.Get("Content-Type"))
 		}
 
 		defer r.Body.Close()
@@ -79,34 +84,6 @@ func (s *targetServer) parseQueryFromRequest(r *http.Request) (*dns.Msg, error) 
 	default:
 		return nil, fmt.Errorf("unsupported HTTP method")
 	}
-}
-
-func (s *targetServer) resolveQuery(query *dns.Msg, chosenResolver int) ([]byte, error) {
-	packedQuery, err := query.Pack()
-	if err != nil {
-		log.Println("Failed encoding DNS query:", err)
-		return nil, err
-	}
-
-	if s.verbose {
-		log.Printf("Query=%s\n", packedQuery)
-	}
-
-	start := time.Now()
-	response, err := s.resolver[chosenResolver].resolve(query)
-	elapsed := time.Now().Sub(start)
-
-	packedResponse, err := response.Pack()
-	if err != nil {
-		log.Println("Failed encoding DNS response:", err)
-		return nil, err
-	}
-
-	if s.verbose {
-		log.Printf("Answer=%s elapsed=%s\n", packedResponse, elapsed.String())
-	}
-
-	return packedResponse, err
 }
 
 func (s *targetServer) resolveQueryWithResolver(q *dns.Msg, r resolver) ([]byte, error) {
@@ -122,7 +99,7 @@ func (s *targetServer) resolveQueryWithResolver(q *dns.Msg, r resolver) ([]byte,
 
 	start := time.Now()
 	response, err := r.resolve(q)
-	elapsed := time.Now().Sub(start)
+	elapsed := time.Since(start)
 
 	packedResponse, err := response.Pack()
 	if err != nil {
@@ -158,7 +135,7 @@ func (s *targetServer) plainQueryHandler(w http.ResponseWriter, r *http.Request)
 	}
 	timestamp.TargetQueryDecryptionTime = time.Now().UnixNano()
 
-	packedResponse, err := s.resolveQuery(query, chosenResolver)
+	packedResponse, err := s.resolveQueryWithResolver(query, s.resolver[chosenResolver])
 	if err != nil {
 		log.Println("Failed resolving DNS query:", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -179,7 +156,7 @@ func (s *targetServer) plainQueryHandler(w http.ResponseWriter, r *http.Request)
 		go s.telemetryClient.streamDataToElastic([]string{exp.serialize()})
 	}
 
-	w.Header().Set("Content-Type", "application/dns-message")
+	w.Header().Set("Content-Type", dnsMessageContentType)
 	w.Write(packedResponse)
 }
 
@@ -287,16 +264,18 @@ func (s *targetServer) obliviousQueryHandler(w http.ResponseWriter, r *http.Requ
 		go s.telemetryClient.streamDataToElastic([]string{exp.serialize()})
 	}
 
-	w.Header().Set("Content-Type", "application/oblivious-dns-message")
+	w.Header().Set("Content-Type", odohMessageContentType)
 	w.Write(packedResponseMessage)
 }
 
 func (s *targetServer) targetQueryHandler(w http.ResponseWriter, r *http.Request) {
-	log.Printf("%s Handling %s\n", r.Method, r.URL.Path)
+	if s.verbose {
+		log.Printf("%s Handling %s\n", r.Method, r.URL.Path)
+	}
 
-	if r.Header.Get("Content-Type") == "application/dns-message" {
+	if r.Header.Get("Content-Type") == dnsMessageContentType {
 		s.plainQueryHandler(w, r)
-	} else if r.Header.Get("Content-Type") == "application/oblivious-dns-message" {
+	} else if r.Header.Get("Content-Type") == odohMessageContentType {
 		s.obliviousQueryHandler(w, r)
 	} else {
 		log.Printf("Invalid content type: %s", r.Header.Get("Content-Type"))
