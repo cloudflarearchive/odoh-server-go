@@ -114,10 +114,7 @@ func (s *targetServer) resolveQueryWithResolver(q *dns.Msg, r resolver) ([]byte,
 	return packedResponse, err
 }
 
-func (s *targetServer) plainQueryHandler(w http.ResponseWriter, r *http.Request) {
-	availableResolvers := len(s.resolver)
-	chosenResolver := rand.Intn(availableResolvers)
-
+func (s *targetServer) dohQueryHandler(w http.ResponseWriter, r *http.Request) {
 	requestReceivedTime := time.Now()
 	exp := experiment{}
 	exp.ExperimentID = s.experimentId
@@ -135,6 +132,8 @@ func (s *targetServer) plainQueryHandler(w http.ResponseWriter, r *http.Request)
 	}
 	timestamp.TargetQueryDecryptionTime = time.Now().UnixNano()
 
+	availableResolvers := len(s.resolver)
+	chosenResolver := rand.Intn(availableResolvers)
 	packedResponse, err := s.resolveQueryWithResolver(query, s.resolver[chosenResolver])
 	if err != nil {
 		log.Println("Failed resolving DNS query:", err)
@@ -160,21 +159,18 @@ func (s *targetServer) plainQueryHandler(w http.ResponseWriter, r *http.Request)
 	w.Write(packedResponse)
 }
 
-func (s *targetServer) parseObliviousQueryFromRequest(r *http.Request) (*odoh.ObliviousDNSQuery, odoh.ResponseContext, error) {
+func (s *targetServer) parseObliviousQueryFromRequest(r *http.Request) (odoh.ObliviousDNSMessage, error) {
+	if r.Method != http.MethodPost {
+		return odoh.ObliviousDNSMessage{}, fmt.Errorf("Unsupported HTTP method for Oblivious DNS query: %s", r.Method)
+	}
+
 	defer r.Body.Close()
 	encryptedMessageBytes, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		log.Println("Failed reading oblivious query body:", err)
-		return nil, odoh.ResponseContext{}, err
+		return odoh.ObliviousDNSMessage{}, err
 	}
 
-	obliviousMessage, err := odoh.UnmarshalDNSMessage(encryptedMessageBytes)
-	if err != nil {
-		log.Println("Failed decoding oblivious DNS message:", err)
-		return nil, odoh.ResponseContext{}, err
-	}
-
-	return s.odohKeyPair.DecryptQuery(obliviousMessage)
+	return odoh.UnmarshalDNSMessage(encryptedMessageBytes)
 }
 
 func (s *targetServer) createObliviousResponseForQuery(context odoh.ResponseContext, dnsResponse []byte) (odoh.ObliviousDNSMessage, error) {
@@ -188,7 +184,7 @@ func (s *targetServer) createObliviousResponseForQuery(context odoh.ResponseCont
 	return odohResponse, err
 }
 
-func (s *targetServer) obliviousQueryHandler(w http.ResponseWriter, r *http.Request) {
+func (s *targetServer) odohQueryHandler(w http.ResponseWriter, r *http.Request) {
 	requestReceivedTime := time.Now()
 	exp := experiment{}
 	exp.ExperimentID = s.experimentId
@@ -197,9 +193,16 @@ func (s *targetServer) obliviousQueryHandler(w http.ResponseWriter, r *http.Requ
 	timestamp := runningTime{}
 
 	timestamp.Start = requestReceivedTime.UnixNano()
-	obliviousQuery, responseContext, err := s.parseObliviousQueryFromRequest(r)
+	odohMessage, err := s.parseObliviousQueryFromRequest(r)
 	if err != nil {
 		log.Println("parseObliviousQueryFromRequest failed:", err)
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+
+	obliviousQuery, responseContext, err := s.odohKeyPair.DecryptQuery(odohMessage)
+	if err != nil {
+		log.Println("DecryptQuery failed:", err)
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
@@ -214,9 +217,8 @@ func (s *targetServer) obliviousQueryHandler(w http.ResponseWriter, r *http.Requ
 	queryParseAndDecryptionCompleteTime := time.Now().UnixNano()
 	timestamp.TargetQueryDecryptionTime = queryParseAndDecryptionCompleteTime
 
-	chosenResolver := int(query.Id) % len(nameServers)
-	resolverChosen := s.resolver[chosenResolver]
-	packedResponse, err := s.resolveQueryWithResolver(query, resolverChosen)
+	chosenResolver := rand.Intn(len(s.resolver))
+	packedResponse, err := s.resolveQueryWithResolver(query, s.resolver[chosenResolver])
 	if err != nil {
 		log.Println("resolveQueryWithResolver failed:", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -274,9 +276,9 @@ func (s *targetServer) targetQueryHandler(w http.ResponseWriter, r *http.Request
 	}
 
 	if r.Header.Get("Content-Type") == dnsMessageContentType {
-		s.plainQueryHandler(w, r)
+		s.dohQueryHandler(w, r)
 	} else if r.Header.Get("Content-Type") == odohMessageContentType {
-		s.obliviousQueryHandler(w, r)
+		s.odohQueryHandler(w, r)
 	} else {
 		log.Printf("Invalid content type: %s", r.Header.Get("Content-Type"))
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
