@@ -24,17 +24,23 @@ package main
 
 import (
 	"fmt"
-	"github.com/miekg/dns"
 	"net"
 	"time"
+
+	"github.com/miekg/dns"
 )
+
+type resolver interface {
+	name() string
+	resolve(query *dns.Msg) (*dns.Msg, error)
+}
 
 type targetResolver struct {
 	nameserver string
 	timeout    time.Duration
 }
 
-func (s targetResolver) getResolverServerName() string {
+func (s targetResolver) name() string {
 	return s.nameserver
 }
 

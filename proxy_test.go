@@ -66,8 +66,8 @@ func TestProxyMethod(t *testing.T) {
 	if status := rr.Code; status != http.StatusBadRequest {
 		t.Fatal(fmt.Errorf("Failed when sent an invalid request method. Expected %d, got %d", http.StatusBadRequest, status))
 	}
-	if proxy.lastError != ErrWrongMethod {
-		t.Fatal(fmt.Errorf("Incorrect error. Expected %s", ErrWrongMethod.Error()))
+	if proxy.lastError != errWrongMethod {
+		t.Fatal(fmt.Errorf("Incorrect error. Expected %s", errWrongMethod.Error()))
 	}
 }
 
@@ -96,8 +96,8 @@ func TestProxyQueryParametersMissing(t *testing.T) {
 		if status := rr.Code; status != http.StatusBadRequest {
 			t.Fatal(fmt.Errorf("Failed when sent invalid parameters. Expected %d, got %d", http.StatusBadRequest, status))
 		}
-		if proxy.lastError != ErrMissingTargetHost {
-			t.Fatal(fmt.Errorf("Incorrect error. Expected %s", ErrMissingTargetHost.Error()))
+		if proxy.lastError != errMissingTargetHost {
+			t.Fatal(fmt.Errorf("Incorrect error. Expected %s", errMissingTargetHost.Error()))
 		}
 	}
 
@@ -117,8 +117,8 @@ func TestProxyQueryParametersMissing(t *testing.T) {
 		if status := rr.Code; status != http.StatusBadRequest {
 			t.Fatal(fmt.Errorf("Failed when sent invalid parameters. Expected %d, got %d", http.StatusBadRequest, status))
 		}
-		if proxy.lastError != ErrMissingTargetPath {
-			t.Fatal(fmt.Errorf("Incorrect error. Expected %s", ErrMissingTargetPath.Error()))
+		if proxy.lastError != errMissingTargetPath {
+			t.Fatal(fmt.Errorf("Incorrect error. Expected %s", errMissingTargetPath.Error()))
 		}
 	}
 }
@@ -140,8 +140,8 @@ func TestProxyQueryMissingBody(t *testing.T) {
 	if status := rr.Code; status != http.StatusBadRequest {
 		t.Fatal(fmt.Errorf("Failed when sent invalid parameters. Expected %d, got %d", http.StatusBadRequest, status))
 	}
-	if proxy.lastError != ErrEmptyRequestBody {
-		t.Fatal(fmt.Errorf("Incorrect error. Expected %s", ErrEmptyRequestBody.Error()))
+	if proxy.lastError != errEmptyRequestBody {
+		t.Fatal(fmt.Errorf("Incorrect error. Expected %s", errEmptyRequestBody.Error()))
 	}
 }
 

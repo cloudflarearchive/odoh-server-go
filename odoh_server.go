@@ -54,9 +54,6 @@ const (
 	healthEndpoint = "/health"
 	configEndpoint = "/.well-known/odohconfigs"
 
-	// WebPvD configuration. Fill in your values here.
-	webPvDString = `"{ "identifier" : "github.com", "expires" : "2019-08-23T06:00:00Z", "prefixes" : [ ], "dnsZones" : [ "odoh.example.net" ] }"`
-
 	// Environment variables
 	secretSeedEnvironmentVariable    = "SEED_SECRET_KEY"
 	targetNameEnvironmentVariable    = "TARGET_INSTANCE_NAME"
@@ -139,7 +136,7 @@ func main() {
 	endpoints["Health"] = healthEndpoint
 	endpoints["Config"] = configEndpoint
 
-	resolversInUse := make([]*targetResolver, len(nameServers))
+	resolversInUse := make([]resolver, len(nameServers))
 
 	for index := 0; index < len(nameServers); index++ {
 		resolver := &targetResolver{
