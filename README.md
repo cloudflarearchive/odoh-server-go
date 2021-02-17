@@ -9,6 +9,36 @@
 [![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy)
 [![deploy to Scalingo](https://cdn.scalingo.com/deploy/button.svg)](https://my.scalingo.com/deploy)
 
+# Local development
+
+To deploy the server locally, first acquire a TLS certificate using [mkcert](https://github.com/FiloSottile/mkcert) as follows:
+
+~~~
+$ mkcert -key-file key.pem -cert-file cert.pem 127.0.0.1 localhost
+~~~
+
+Then build and run the server as follows:
+
+~~~
+$ make all
+$ CERT=cert.pem KEY=key.pem PORT=4567 ./odoh-server
+~~~
+
+You may then run the [corresponding client](https://github.com/cloudflare/odoh-client-go) as follows:
+
+~~~
+$ ./odoh-client odoh --proxy localhost:4567 --target odoh.cloudflare-dns.com --domain cloudflare.com
+;; opcode: QUERY, status: NOERROR, id: 14306
+;; flags: qr rd ra; QUERY: 1, ANSWER: 2, AUTHORITY: 0, ADDITIONAL: 0
+
+;; QUESTION SECTION:
+;cloudflare.com.	IN	 AAAA
+
+;; ANSWER SECTION:
+cloudflare.com.	271	IN	AAAA	2606:4700::6810:84e5
+cloudflare.com.	271	IN	AAAA	2606:4700::6810:85e5
+~~~
+
 # Usage
 
 To deploy, run:
