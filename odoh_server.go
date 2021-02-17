@@ -59,6 +59,8 @@ const (
 	targetNameEnvironmentVariable    = "TARGET_INSTANCE_NAME"
 	experimentIDEnvironmentVariable  = "EXPERIMENT_ID"
 	telemetryTypeEnvironmentVariable = "TELEMETRY_TYPE"
+	certificateEnvironmentVariable   = "CERT"
+	keyEnvironmentVariable           = "KEY"
 )
 
 var (
@@ -116,13 +118,23 @@ func main() {
 	log.Printf("Setting Server Name as %v", serverName)
 
 	var experimentID string
-	if experimentID := os.Getenv(experimentIDEnvironmentVariable); experimentID == "" {
+	if experimentID = os.Getenv(experimentIDEnvironmentVariable); experimentID == "" {
 		experimentID = "EXP_LOCAL"
 	}
 
 	var telemetryType string
-	if telemetryType := os.Getenv(telemetryTypeEnvironmentVariable); telemetryType == "" {
+	if telemetryType = os.Getenv(telemetryTypeEnvironmentVariable); telemetryType == "" {
 		telemetryType = "LOG"
+	}
+
+	var certFile string
+	if certFile = os.Getenv(certificateEnvironmentVariable); certFile == "" {
+		certFile = "cert.pem"
+	}
+
+	var keyFile string
+	if keyFile = os.Getenv(keyEnvironmentVariable); keyFile == "" {
+		keyFile = "key.pem"
 	}
 
 	keyPair, err := odoh.CreateKeyPairFromSeed(kemID, kdfID, aeadID, seed)
@@ -177,6 +189,6 @@ func main() {
 	http.HandleFunc(configEndpoint, target.configHandler)
 	http.HandleFunc("/", server.indexHandler)
 
-	log.Printf("Listening on port %v\n", port)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", port), nil))
+	log.Printf("Listening on port %v with cert %v and key %v\n", port, certFile, keyFile)
+	log.Fatal(http.ListenAndServeTLS(fmt.Sprintf(":%s", port), certFile, keyFile, nil))
 }
