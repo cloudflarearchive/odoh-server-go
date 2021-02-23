@@ -29,6 +29,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	mathrand "math/rand"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -40,7 +41,7 @@ import (
 
 type localResolver struct {
 	queries          []string
-	queryResponseMap map[string][]byte // Packed DNS queries to responses
+	queryResponseMap map[string][][]byte // Packed DNS queries to responses
 }
 
 func (r localResolver) name() string {
@@ -59,12 +60,23 @@ func (r localResolver) resolve(query *dns.Msg) (*dns.Msg, error) {
 	}
 
 	response := &dns.Msg{}
-	err = response.Unpack(packed)
+	if len(packed) != 0 {
+		randomIndex := mathrand.Intn(len(packed))
+		err = response.Unpack(packed[randomIndex])
+	}
 
 	return response, err
 }
 
-func createLocalResolver(t *testing.T) *localResolver {
+func createLocalResolver(t *testing.T, responseIndex ...int) *localResolver {
+	response_messages := []string{"127.0.0.1", "127.0.0.2"}
+
+	if len(responseIndex) != 0 {
+		for i, j := 0, len(response_messages)-1; i < j; i, j = i+1, j-1 {
+			response_messages[i], response_messages[j] = response_messages[j], response_messages[i]
+		}
+	}
+
 	q := new(dns.Msg)
 	q.SetQuestion("example.com.", dns.TypeA)
 	packedQuery, err := q.Pack()
@@ -72,28 +84,32 @@ func createLocalResolver(t *testing.T) *localResolver {
 		t.Fatal(err)
 	}
 
-	r := new(dns.Msg)
-	r.SetReply(q)
-	r.Answer = make([]dns.RR, 1)
-	r.Answer[0] = &dns.A{
-		Hdr: dns.RR_Header{
-			Name:   q.Question[0].Name,
-			Rrtype: dns.TypeA,
-			Class:  dns.ClassINET,
-			Ttl:    0,
-		},
-		A: net.ParseIP("127.0.0.1"),
-	}
-	packedResponse, err := r.Pack()
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	resultMap := make(map[string][][]byte)
 	queries := make([]string, 0)
 	queries = append(queries, string(packedQuery))
+	responses := make([][]byte, 0)
 
-	resultMap := make(map[string][]byte)
-	resultMap[string(packedQuery)] = packedResponse
+	for _, response := range response_messages {
+		r := new(dns.Msg)
+		r.SetReply(q)
+		r.Answer = make([]dns.RR, 1)
+		r.Answer[0] = &dns.A{
+			Hdr: dns.RR_Header{
+				Name:   q.Question[0].Name,
+				Rrtype: dns.TypeA,
+				Class:  dns.ClassINET,
+				Ttl:    0,
+			},
+			A: net.ParseIP(response),
+		}
+		packedResponse, err := r.Pack()
+		if err != nil {
+			t.Fatal(err)
+		}
+		responses = append(responses, packedResponse)
+	}
+
+	resultMap[string(packedQuery)] = responses
 
 	return &localResolver{
 		queries:          queries,
@@ -199,7 +215,16 @@ func TestQueryHandlerDoHWithPOST(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(responseBody, r.queryResponseMap[q]) {
+	availableResponses := r.queryResponseMap[q]
+
+	foundMatchResponse := false
+	for _, responseFromResponseMap := range availableResponses {
+		if bytes.Equal(responseBody, responseFromResponseMap) {
+			foundMatchResponse = true
+		}
+	}
+
+	if foundMatchResponse == false {
 		t.Fatal("Incorrect response received")
 	}
 }
@@ -233,7 +258,16 @@ func TestQueryHandlerDoHWithGET(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(responseBody, r.queryResponseMap[q]) {
+	availableResponses := r.queryResponseMap[q]
+
+	foundMatchResponse := false
+	for _, responseFromResponseMap := range availableResponses {
+		if bytes.Equal(responseBody, responseFromResponseMap) {
+			foundMatchResponse = true
+		}
+	}
+
+	if foundMatchResponse == false {
 		t.Fatal("Incorrect response received")
 	}
 }
@@ -331,8 +365,17 @@ func TestQueryHandlerODoH(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !bytes.Equal(response, r.queryResponseMap[q]) {
-		t.Fatal(fmt.Errorf("Incorrect response received. Got %v, expected %v", response, r.queryResponseMap[q]))
+	availableResponses := r.queryResponseMap[q]
+
+	foundMatchResponse := false
+	for _, responseFromResponseMap := range availableResponses {
+		if bytes.Equal(response, responseFromResponseMap) {
+			foundMatchResponse = true
+		}
+	}
+
+	if foundMatchResponse == false {
+		t.Fatal(fmt.Errorf("Incorrect response received. Got %v \n, expected one of %v", response, r.queryResponseMap[q]))
 	}
 }
 
