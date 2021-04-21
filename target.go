@@ -40,7 +40,6 @@ import (
 type targetServer struct {
 	resolver           resolver
 	odohKeyPair        odoh.ObliviousDoHKeyPair
-	telemetryClient    *telemetry
 	serverInstanceName string
 	experimentId       string
 }
@@ -128,42 +127,18 @@ func (s *targetServer) resolveQueryWithResolver(q *dns.Msg, r resolver) ([]byte,
 }
 
 func (s *targetServer) dohQueryHandler(w http.ResponseWriter, r *http.Request) {
-	requestReceivedTime := time.Now()
-	exp := experiment{}
-	exp.ExperimentID = s.experimentId
-	exp.IngestedFrom = s.serverInstanceName
-	exp.ProtocolType = "ClearText-ODOH"
-	exp.RequestID = nil
-	timestamp := runningTime{}
-
-	timestamp.Start = requestReceivedTime.UnixNano()
 	query, err := s.parseQueryFromRequest(r)
 	if err != nil {
 		log.Println("Failed parsing request:", err)
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
-	timestamp.TargetQueryDecryptionTime = time.Now().UnixNano()
 
 	packedResponse, err := s.resolveQueryWithResolver(query, s.resolver)
 	if err != nil {
 		log.Println("Failed resolving DNS query:", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
-	}
-	endTime := time.Now().UnixNano()
-	timestamp.TargetQueryResolutionTime = endTime
-	timestamp.TargetAnswerEncryptionTime = endTime
-	timestamp.EndTime = endTime
-
-	exp.Timestamp = timestamp
-	exp.Resolver = s.resolver.name()
-	exp.Status = true
-
-	if s.telemetryClient.logClient != nil {
-		go s.telemetryClient.streamTelemetryToGCPLogging([]string{exp.serialize()})
-	} else if s.telemetryClient.esClient != nil {
-		go s.telemetryClient.streamDataToElastic([]string{exp.serialize()})
 	}
 
 	w.Header().Set("Content-Type", dnsMessageContentType)
@@ -205,14 +180,6 @@ func (s *targetServer) createObliviousResponseForQuery(context odoh.ResponseCont
 }
 
 func (s *targetServer) odohQueryHandler(w http.ResponseWriter, r *http.Request) {
-	requestReceivedTime := time.Now()
-	exp := experiment{}
-	exp.ExperimentID = s.experimentId
-	exp.IngestedFrom = s.serverInstanceName
-	exp.ProtocolType = "ODOH"
-	timestamp := runningTime{}
-
-	timestamp.Start = requestReceivedTime.UnixNano()
 	odohMessage, err := s.parseObliviousQueryFromRequest(r)
 	if err != nil {
 		log.Println("parseObliviousQueryFromRequest failed:", err)
@@ -241,9 +208,6 @@ func (s *targetServer) odohQueryHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	queryParseAndDecryptionCompleteTime := time.Now().UnixNano()
-	timestamp.TargetQueryDecryptionTime = queryParseAndDecryptionCompleteTime
-
 	packedResponse, err := s.resolveQueryWithResolver(query, s.resolver)
 	if err != nil {
 		log.Println("resolveQueryWithResolver failed:", err)
@@ -251,46 +215,17 @@ func (s *targetServer) odohQueryHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	queryResolutionCompleteTime := time.Now().UnixNano()
-	timestamp.TargetQueryResolutionTime = queryResolutionCompleteTime
-
 	obliviousResponse, err := s.createObliviousResponseForQuery(responseContext, packedResponse)
 	if err != nil {
 		log.Println("createObliviousResponseForQuery failed:", err)
-		timestamp.TargetAnswerEncryptionTime = 0
-		timestamp.EndTime = 0
-		exp.Timestamp = timestamp
-		exp.Status = false
-		exp.Resolver = ""
-		if s.telemetryClient.logClient != nil {
-			go s.telemetryClient.streamTelemetryToGCPLogging([]string{exp.serialize()})
-		} else if s.telemetryClient.esClient != nil {
-			go s.telemetryClient.streamDataToElastic([]string{exp.serialize()})
-		}
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 	packedResponseMessage := obliviousResponse.Marshal()
-
-	answerEncryptionAndSerializeCompletionTime := time.Now().UnixNano()
-	timestamp.TargetAnswerEncryptionTime = answerEncryptionAndSerializeCompletionTime
-
 	log.Debugf("target response: %x", packedResponseMessage)
 
-	returnResponseTime := time.Now().UnixNano()
-	timestamp.EndTime = returnResponseTime
-
-	exp.Timestamp = timestamp
-	exp.Resolver = s.resolver.name()
-	exp.Status = true
-
-	if s.telemetryClient.logClient != nil {
-		go s.telemetryClient.streamTelemetryToGCPLogging([]string{exp.serialize()})
-	} else if s.telemetryClient.esClient != nil {
-		go s.telemetryClient.streamDataToElastic([]string{exp.serialize()})
-	}
-
 	w.Header().Set("Content-Type", odohMessageContentType)
+	log.Debug("sending packedResponseMessage")
 	_, err = w.Write(packedResponseMessage)
 	if err != nil {
 		log.Warn(err)

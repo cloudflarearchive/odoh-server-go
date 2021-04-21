@@ -119,9 +119,8 @@ func createKeyPair(t *testing.T) odoh.ObliviousDoHKeyPair {
 
 func createTarget(t *testing.T, r resolver) targetServer {
 	return targetServer{
-		resolver:        r,
-		odohKeyPair:     createKeyPair(t),
-		telemetryClient: getTelemetryInstance("LOG"),
+		resolver:    r,
+		odohKeyPair: createKeyPair(t),
 	}
 }
 
