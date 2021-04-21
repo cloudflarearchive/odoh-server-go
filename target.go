@@ -23,6 +23,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -105,6 +106,10 @@ func (s *targetServer) resolveQueryWithResolver(q *dns.Msg, r resolver) ([]byte,
 
 	start := time.Now()
 	response, err := r.resolve(q)
+	if err != nil {
+		log.Println("Resolution failed: ", err)
+		return nil, err
+	}
 	elapsed := time.Since(start)
 
 	var packedResponse []byte
@@ -195,6 +200,9 @@ func (s *targetServer) parseObliviousQueryFromRequest(r *http.Request) (odoh.Obl
 func (s *targetServer) createObliviousResponseForQuery(context odoh.ResponseContext, dnsResponse []byte) (odoh.ObliviousDNSMessage, error) {
 	response := odoh.CreateObliviousDNSResponse(dnsResponse, 0)
 	odohResponse, err := context.EncryptResponse(response)
+	if err != nil {
+		return odoh.ObliviousDNSMessage{}, err
+	}
 
 	if s.verbose {
 		log.Printf("Encrypted response: %x", odohResponse)
@@ -217,6 +225,13 @@ func (s *targetServer) odohQueryHandler(w http.ResponseWriter, r *http.Request) 
 		log.Println("parseObliviousQueryFromRequest failed:", err)
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
+	}
+
+	keyID := s.odohKeyPair.Config.Contents.KeyID()
+	receivedKeyID := odohMessage.KeyID
+	if !bytes.Equal(keyID, receivedKeyID) {
+		log.Println("received keyID is different from expected key ID")
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 	}
 
 	obliviousQuery, responseContext, err := s.odohKeyPair.DecryptQuery(odohMessage)
