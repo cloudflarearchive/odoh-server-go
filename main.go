@@ -51,7 +51,7 @@ var version = "dev"
 // CLI flags
 var opts struct {
 	ListenAddr string `short:"l" long:"listen" description:"Address to listen on" default:"localhost:8080"`
-	Resolver   string `short:"r" long:"resolver" description:"Target DNS resolver to query" default:"1.1.1.1:53"`
+	Resolver   string `short:"r" long:"resolver" description:"Target DNS resolver" default:"127.0.0.1:53"`
 	DisableTls bool   `short:"t" long:"no-tls" description:"Disable TLS"`
 	Cert       string `short:"c" long:"cert" description:"TLS certificate file"`
 	Key        string `short:"k" long:"key" description:"TLS key file"`
