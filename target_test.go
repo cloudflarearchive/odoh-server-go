@@ -156,6 +156,7 @@ func TestConfigHandler(t *testing.T) {
 		t.Fatal("Received invalid config")
 	}
 }
+
 func TestQueryHandlerInvalidContentType(t *testing.T) {
 	r := createLocalResolver(t)
 	target := createTarget(t, r)
@@ -405,7 +406,7 @@ func TestQueryHandlerODoHWithMalformedQuery(t *testing.T) {
 
 	// malformed odoh query
 	queryBytes := []byte{1, 2, 3}
-	request, err := http.NewRequest(http.MethodPost, queryEndpoint, bytes.NewReader(queryBytes))
+	request, err := http.NewRequest(http.MethodPost, "/dns-query", bytes.NewReader(queryBytes))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -415,7 +416,7 @@ func TestQueryHandlerODoHWithMalformedQuery(t *testing.T) {
 	handler.ServeHTTP(rr, request)
 
 	if status := rr.Result().StatusCode; status != http.StatusBadRequest {
-		t.Fatal(fmt.Errorf("Result did not yield %d, got %d instead", http.StatusBadRequest, status))
+		t.Fatal(fmt.Errorf("result did not yield %d, got %d instead", http.StatusBadRequest, status))
 	}
 }
 
@@ -435,7 +436,7 @@ func TestODoHResolutionWithRealResolver(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	request, err := http.NewRequest(http.MethodPost, queryEndpoint, bytes.NewReader(encryptedQuery.Marshal()))
+	request, err := http.NewRequest(http.MethodPost, "/dns-query", bytes.NewReader(encryptedQuery.Marshal()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -445,10 +446,10 @@ func TestODoHResolutionWithRealResolver(t *testing.T) {
 	handler.ServeHTTP(rr, request)
 
 	if status := rr.Result().StatusCode; status != http.StatusBadRequest {
-		t.Fatal(fmt.Errorf("Result did not yield %d, got %d instead", http.StatusBadRequest, status))
+		t.Fatal(fmt.Errorf("result did not yield %d, got %d instead", http.StatusBadRequest, status))
 	}
 
-	handler = http.HandlerFunc(target.targetQueryHandler)
+	handler = target.targetQueryHandler
 
 	// valid dns query
 	q := new(dns.Msg)
@@ -457,13 +458,13 @@ func TestODoHResolutionWithRealResolver(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	obliviousQuery = odoh.CreateObliviousDNSQuery([]byte(packedQuery), 0)
+	obliviousQuery = odoh.CreateObliviousDNSQuery(packedQuery, 0)
 	encryptedQuery, _, err = target.odohKeyPair.Config.Contents.EncryptQuery(obliviousQuery)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	request, err = http.NewRequest(http.MethodPost, queryEndpoint, bytes.NewReader(encryptedQuery.Marshal()))
+	request, err = http.NewRequest(http.MethodPost, "/dns-query", bytes.NewReader(encryptedQuery.Marshal()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -473,7 +474,7 @@ func TestODoHResolutionWithRealResolver(t *testing.T) {
 	handler.ServeHTTP(rr, request)
 
 	if status := rr.Result().StatusCode; status != http.StatusOK {
-		t.Fatal(fmt.Errorf("Result did not yield %d, got %d instead", http.StatusOK, status))
+		t.Fatal(fmt.Errorf("result did not yield %d, got %d instead", http.StatusOK, status))
 	}
 	if rr.Result().Header.Get("Content-Type") != odohMessageContentType {
 		t.Fatal("Invalid content type response")
