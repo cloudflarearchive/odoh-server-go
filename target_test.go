@@ -364,7 +364,7 @@ func TestQueryHandlerODoHWithInvalidKey(t *testing.T) {
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, request)
 
-	if status := rr.Result().StatusCode; status != http.StatusBadRequest {
+	if status := rr.Result().StatusCode; status != http.StatusUnauthorized {
 		t.Fatal(fmt.Errorf("result did not yield %d, got %d instead", http.StatusBadRequest, status))
 	}
 }
