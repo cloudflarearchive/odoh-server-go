@@ -54,7 +54,7 @@ func TestProxyMethod(t *testing.T) {
 	handler := http.HandlerFunc(proxy.proxyQueryHandler)
 
 	fakeQueryBody := strings.NewReader("test body")
-	fakeQueryURL := queryEndpoint
+	fakeQueryURL := "/dns-query"
 	request, err := http.NewRequest("GET", fakeQueryURL, fakeQueryBody)
 	if err != nil {
 		t.Fatal(err)
@@ -79,10 +79,10 @@ func TestProxyQueryParametersMissing(t *testing.T) {
 	fakeQueryBody := strings.NewReader("test body")
 
 	testURLs := []string{
-		queryEndpoint,
+		"/dns-query",
 		"/not-the-right-endpoint",
-		queryEndpoint + "?targethost=",
-		queryEndpoint + "?targetpath=bar",
+		"/dns-query?targethost=",
+		"/dns-query?targetpath=bar",
 	}
 	for _, url := range testURLs {
 		request, err := http.NewRequest("POST", url, fakeQueryBody)
@@ -102,8 +102,8 @@ func TestProxyQueryParametersMissing(t *testing.T) {
 	}
 
 	testURLs = []string{
-		queryEndpoint + "?targethost=foo",
-		queryEndpoint + "?targethost=foo&targetpath=",
+		"/dns-query?targethost=foo",
+		"/dns-query?targethost=foo&targetpath=",
 	}
 	for _, url := range testURLs {
 		request, err := http.NewRequest("POST", url, fakeQueryBody)
@@ -129,7 +129,7 @@ func TestProxyQueryMissingBody(t *testing.T) {
 	handler := http.HandlerFunc(proxy.proxyQueryHandler)
 
 	emptyQueryBody := strings.NewReader("")
-	request, err := http.NewRequest("POST", queryEndpoint+"?targethost=foo&targetpath=bar", emptyQueryBody)
+	request, err := http.NewRequest("POST", "/dns-query?targethost=foo&targetpath=bar", emptyQueryBody)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +153,7 @@ func TestProxyIncorrectTarget(t *testing.T) {
 	handler := http.HandlerFunc(proxy.proxyQueryHandler)
 
 	fakeQueryBody := strings.NewReader("test body")
-	fakeQueryURL := queryEndpoint + "?targethost=nottherighttarget.com&targetpath=/"
+	fakeQueryURL := "/dns-query?targethost=nottherighttarget.com&targetpath=/"
 
 	request, err := http.NewRequest("POST", fakeQueryURL, fakeQueryBody)
 	if err != nil {
@@ -187,7 +187,7 @@ func TestProxyStatusCodePropagationOK(t *testing.T) {
 	handler := http.HandlerFunc(proxy.proxyQueryHandler)
 
 	fakeQueryBody := strings.NewReader("test body")
-	fakeQueryURL := queryEndpoint + "?targethost=" + testTargetURL + "&targetpath=/"
+	fakeQueryURL := "/dns-query" + "?targethost=" + testTargetURL + "&targetpath=/"
 
 	request, err := http.NewRequest("POST", fakeQueryURL, fakeQueryBody)
 	if err != nil {
@@ -222,7 +222,7 @@ func TestProxyStatusCodePropagationFailure(t *testing.T) {
 	handler := http.HandlerFunc(proxy.proxyQueryHandler)
 
 	fakeQueryBody := strings.NewReader("test body")
-	fakeQueryURL := queryEndpoint + "?targethost=" + testTargetURL + "&targetpath=/"
+	fakeQueryURL := "/dns-query" + "?targethost=" + testTargetURL + "&targetpath=/"
 
 	request, err := http.NewRequest("POST", fakeQueryURL, fakeQueryBody)
 	if err != nil {

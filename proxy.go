@@ -26,9 +26,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type proxyServer struct {
@@ -37,10 +39,10 @@ type proxyServer struct {
 }
 
 var (
-	errWrongMethod       = fmt.Errorf("Unsupported method")
-	errMissingTargetHost = fmt.Errorf("Missing proxy targethost query parameter")
-	errMissingTargetPath = fmt.Errorf("Missing proxy targetpath query parameter")
-	errEmptyRequestBody  = fmt.Errorf("Missing request body")
+	errWrongMethod       = fmt.Errorf("unsupported method")
+	errMissingTargetHost = fmt.Errorf("missing proxy targethost query parameter")
+	errMissingTargetPath = fmt.Errorf("missing proxy targetpath query parameter")
+	errEmptyRequestBody  = fmt.Errorf("missing request body")
 )
 
 func forwardProxyRequest(client *http.Client, targetName string, targetPath string, body []byte, headerContentType string) (*http.Response, error) {
@@ -56,8 +58,6 @@ func forwardProxyRequest(client *http.Client, targetName string, targetPath stri
 }
 
 func (p *proxyServer) proxyQueryHandler(w http.ResponseWriter, r *http.Request) {
-	log.Printf("%s Handling %s\n", r.Method, r.URL.Path)
-
 	if r.Method != "POST" {
 		p.lastError = errWrongMethod
 		log.Printf(p.lastError.Error())
@@ -81,7 +81,12 @@ func (p *proxyServer) proxyQueryHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	defer r.Body.Close()
+	defer func(body io.ReadCloser) {
+		err := body.Close()
+		if err != nil {
+			log.Warn(err)
+		}
+	}(r.Body)
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil || len(body) == 0 {
 		p.lastError = errEmptyRequestBody
@@ -103,6 +108,7 @@ func (p *proxyServer) proxyQueryHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	//goland:noinspection GoUnhandledErrorResult
 	defer response.Body.Close()
 	responseBody, err := ioutil.ReadAll(response.Body)
 	if err != nil {
@@ -111,5 +117,8 @@ func (p *proxyServer) proxyQueryHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	w.Header().Set("Content-Type", headerContentType)
-	w.Write(responseBody)
+	_, err = w.Write(responseBody)
+	if err != nil {
+		log.Warn(err)
+	}
 }
