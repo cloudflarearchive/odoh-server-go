@@ -34,3 +34,5 @@ jobs:
         with:
           message: "ci: update coverage"
           add: "coverage_badge.png"
+          author_name: "github-actions[bot]"
+          author_email: "github-actions[bot]@users.noreply.github.com"
