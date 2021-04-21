@@ -34,7 +34,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	odoh "github.com/cloudflare/odoh-go"
+	"github.com/cloudflare/odoh-go"
 	"github.com/miekg/dns"
 )
 
@@ -55,7 +55,7 @@ func (r localResolver) resolve(query *dns.Msg) (*dns.Msg, error) {
 
 	packed, ok := r.queryResponseMap[string(packedQuery)]
 	if !ok {
-		return nil, errors.New("Failed to resolve")
+		return nil, errors.New("failed to resolve")
 	}
 
 	response := &dns.Msg{}
@@ -103,11 +103,14 @@ func createLocalResolver(t *testing.T) *localResolver {
 
 func createKeyPair(t *testing.T) odoh.ObliviousDoHKeyPair {
 	seed := make([]byte, defaultSeedLength)
-	rand.Read(seed)
+	_, err := rand.Read(seed)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	keyPair, err := odoh.CreateKeyPairFromSeed(kemID, kdfID, aeadID, seed)
 	if err != nil {
-		t.Fatal("Failed to create a private key. Exiting now.")
+		t.Fatal("failed to create a private key. Exiting now.")
 	}
 
 	return keyPair
@@ -140,7 +143,7 @@ func TestConfigHandler(t *testing.T) {
 	handler.ServeHTTP(rr, request)
 
 	if status := rr.Code; status != http.StatusOK {
-		t.Fatal(fmt.Errorf("Failed request with error code: %d", status))
+		t.Fatal(fmt.Errorf("failed request with error code: %d", status))
 	}
 
 	body, err := ioutil.ReadAll(rr.Result().Body)
@@ -168,7 +171,7 @@ func TestQueryHandlerInvalidContentType(t *testing.T) {
 	handler.ServeHTTP(rr, request)
 
 	if status := rr.Result().StatusCode; status != http.StatusBadRequest {
-		t.Fatal(fmt.Errorf("Result did not yield %d, got %d instead", http.StatusBadRequest, status))
+		t.Fatal(fmt.Errorf("result did not yield %d, got %d instead", http.StatusBadRequest, status))
 	}
 }
 
@@ -189,10 +192,10 @@ func TestQueryHandlerDoHWithPOST(t *testing.T) {
 	handler.ServeHTTP(rr, request)
 
 	if status := rr.Result().StatusCode; status != http.StatusOK {
-		t.Fatal(fmt.Errorf("Result did not yield %d, got %d instead", http.StatusOK, status))
+		t.Fatal(fmt.Errorf("result did not yield %d, got %d instead", http.StatusOK, status))
 	}
 	if rr.Result().Header.Get("Content-Type") != dnsMessageContentType {
-		t.Fatal("Invalid content type response")
+		t.Fatal("invalid content type response")
 	}
 
 	responseBody, err := ioutil.ReadAll(rr.Result().Body)
@@ -200,7 +203,7 @@ func TestQueryHandlerDoHWithPOST(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(responseBody, r.queryResponseMap[q]) {
-		t.Fatal("Incorrect response received")
+		t.Fatal("incorrect response received")
 	}
 }
 
@@ -223,10 +226,10 @@ func TestQueryHandlerDoHWithGET(t *testing.T) {
 	handler.ServeHTTP(rr, request)
 
 	if status := rr.Result().StatusCode; status != http.StatusOK {
-		t.Fatal(fmt.Errorf("Result did not yield %d, got %d instead", http.StatusOK, status))
+		t.Fatal(fmt.Errorf("result did not yield %d, got %d instead", http.StatusOK, status))
 	}
 	if rr.Result().Header.Get("Content-Type") != dnsMessageContentType {
-		t.Fatal("Invalid content type response")
+		t.Fatal("invalid content type response")
 	}
 
 	responseBody, err := ioutil.ReadAll(rr.Result().Body)
@@ -234,7 +237,7 @@ func TestQueryHandlerDoHWithGET(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(responseBody, r.queryResponseMap[q]) {
-		t.Fatal("Incorrect response received")
+		t.Fatal("incorrect response received")
 	}
 }
 
@@ -256,7 +259,7 @@ func TestQueryHandlerDoHWithInvalidMethod(t *testing.T) {
 	handler.ServeHTTP(rr, request)
 
 	if status := rr.Result().StatusCode; status != http.StatusBadRequest {
-		t.Fatal(fmt.Errorf("Result did not yield %d, got %d instead", http.StatusBadRequest, status))
+		t.Fatal(fmt.Errorf("result did not yield %d, got %d instead", http.StatusBadRequest, status))
 	}
 }
 
@@ -283,7 +286,7 @@ func TestQueryHandlerODoHWithInvalidMethod(t *testing.T) {
 	handler.ServeHTTP(rr, request)
 
 	if status := rr.Result().StatusCode; status != http.StatusBadRequest {
-		t.Fatal(fmt.Errorf("Result did not yield %d, got %d instead", http.StatusBadRequest, status))
+		t.Fatal(fmt.Errorf("result did not yield %d, got %d instead", http.StatusBadRequest, status))
 	}
 }
 
@@ -310,10 +313,10 @@ func TestQueryHandlerODoH(t *testing.T) {
 	handler.ServeHTTP(rr, request)
 
 	if status := rr.Result().StatusCode; status != http.StatusOK {
-		t.Fatal(fmt.Errorf("Result did not yield %d, got %d instead", http.StatusOK, status))
+		t.Fatal(fmt.Errorf("result did not yield %d, got %d instead", http.StatusOK, status))
 	}
 	if rr.Result().Header.Get("Content-Type") != odohMessageContentType {
-		t.Fatal("Invalid content type response")
+		t.Fatal("invalid content type response")
 	}
 
 	responseBody, err := ioutil.ReadAll(rr.Result().Body)
@@ -332,7 +335,7 @@ func TestQueryHandlerODoH(t *testing.T) {
 	}
 
 	if !bytes.Equal(response, r.queryResponseMap[q]) {
-		t.Fatal(fmt.Errorf("Incorrect response received. Got %v, expected %v", response, r.queryResponseMap[q]))
+		t.Fatal(fmt.Errorf("incorrect response received. Got %v, expected %v", response, r.queryResponseMap[q]))
 	}
 }
 
@@ -360,7 +363,7 @@ func TestQueryHandlerODoHWithInvalidKey(t *testing.T) {
 	handler.ServeHTTP(rr, request)
 
 	if status := rr.Result().StatusCode; status != http.StatusBadRequest {
-		t.Fatal(fmt.Errorf("Result did not yield %d, got %d instead", http.StatusBadRequest, status))
+		t.Fatal(fmt.Errorf("result did not yield %d, got %d instead", http.StatusBadRequest, status))
 	}
 }
 
@@ -389,6 +392,6 @@ func TestQueryHandlerODoHWithCorruptCiphertext(t *testing.T) {
 	handler.ServeHTTP(rr, request)
 
 	if status := rr.Result().StatusCode; status != http.StatusBadRequest {
-		t.Fatal(fmt.Errorf("Result did not yield %d, got %d instead", http.StatusBadRequest, status))
+		t.Fatal(fmt.Errorf("result did not yield %d, got %d instead", http.StatusBadRequest, status))
 	}
 }
