@@ -52,8 +52,8 @@ var version = "dev"
 var opts struct {
 	ListenAddr string `short:"l" long:"listen" description:"Address to listen on" default:"localhost:8080"`
 	Resolver   string `short:"r" long:"resolver" description:"Upstream DNS resolver to query" default:"1.1.1.1:53"`
-	Cert       string `short:"c" long:"cert" description:"TLS certificate file"`
-	Key        string `short:"k" long:"key" description:"TLS key file"`
+	Cert       string `short:"c" long:"cert" description:"TLS certificate file" required:"true"`
+	Key        string `short:"k" long:"key" description:"TLS key file" required:"true"`
 	Verbose    bool   `short:"v" long:"verbose" description:"Enable verbose logging"`
 }
 
