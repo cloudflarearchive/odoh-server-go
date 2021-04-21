@@ -1,0 +1,26 @@
+before:
+  hooks:
+    - go mod download
+builds:
+  -
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - freebsd
+    goarch:
+      - amd64
+      - arm64
+nfpms:
+  - id: odohd
+    package_name: odohd
+    vendor: Emerald Onion
+    homepage: https://packetframe.com
+    maintainer: Nate Sales <nate@emeraldonion.org>
+    description: Oblivious DNS over HTTPS server
+    license: GNU GPL-3.0
+    section: utils
+    priority: extra
+    formats:
+      - deb
+      - rpm
