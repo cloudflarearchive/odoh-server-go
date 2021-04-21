@@ -24,7 +24,6 @@ package main
 
 import (
 	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"net/http"
 	"os"
@@ -34,6 +33,16 @@ import (
 	"github.com/cloudflare/odoh-go"
 	"github.com/jessevdk/go-flags"
 	log "github.com/sirupsen/logrus"
+)
+
+const (
+	// HPKE constants
+	kemID  = hpke.DHKEM_X25519
+	kdfID  = hpke.KDF_HKDF_SHA256
+	aeadID = hpke.AEAD_AESGCM128
+
+	// Keying material (seed) should have as many bits of entropy as the bit length of the x25519 secret key
+	defaultSeedLength = 32
 )
 
 // Set by build process
@@ -47,44 +56,10 @@ var opts struct {
 	Verbose    bool   `short:"v" long:"verbose" description:"Enable verbose logging"`
 }
 
-const (
-	// HPKE constants
-	kemID  = hpke.DHKEM_X25519
-	kdfID  = hpke.KDF_HKDF_SHA256
-	aeadID = hpke.AEAD_AESGCM128
-
-	// keying material (seed) should have as many bits of entropy as the bit
-	// length of the x25519 secret key
-	defaultSeedLength = 32
-
-	// HTTP constants. Fill in your proxy and target here.
-	defaultPort    = "8080"
-	proxyURI       = "https://dnstarget.example.net"
-	targetURI      = "https://dnsproxy.example.net"
-	proxyEndpoint  = "/proxy"
-	queryEndpoint  = "/dns-query"
-	healthEndpoint = "/health"
-	configEndpoint = "/.well-known/odohconfigs"
-
-	// Environment variables
-	secretSeedEnvironmentVariable    = "SEED_SECRET_KEY"
-	targetNameEnvironmentVariable    = "TARGET_INSTANCE_NAME"
-	experimentIDEnvironmentVariable  = "EXPERIMENT_ID"
-	telemetryTypeEnvironmentVariable = "TELEMETRY_TYPE"
-)
-
 var (
 	// DNS constants. Fill in a DNS server to forward to here.
 	nameServers = []string{"1.1.1.1:53", "8.8.8.8:53", "9.9.9.9:53"}
 )
-
-type odohServer struct {
-	endpoints map[string]string
-	Verbose   bool
-	target    *targetServer
-	proxy     *proxyServer
-	DOHURI    string
-}
 
 func main() {
 	// Parse cli flags
@@ -99,31 +74,17 @@ func main() {
 		log.SetLevel(log.DebugLevel)
 	}
 
-	log.Infof("Starting bcg %s", version)
-
-	var seed []byte
-	if seedHex := os.Getenv(secretSeedEnvironmentVariable); seedHex != "" {
-		log.Printf("Using Secret Key Seed : [%v]", seedHex)
-		var err error
-		seed, err = hex.DecodeString(seedHex)
-		if err != nil {
-			panic(err)
-		}
-	} else {
-		seed = make([]byte, defaultSeedLength)
-		rand.Read(seed)
-	}
-
-	keyPair, err := odoh.CreateKeyPairFromSeed(kemID, kdfID, aeadID, seed)
+	// Random seed for HPKE keypair
+	seed := make([]byte, defaultSeedLength)
+	_, err = rand.Read(seed)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	endpoints := make(map[string]string)
-	endpoints["Target"] = queryEndpoint
-	endpoints["Proxy"] = proxyEndpoint
-	endpoints["Health"] = healthEndpoint
-	endpoints["Config"] = configEndpoint
+	keyPair, err := odoh.CreateKeyPairFromSeed(hpke.DHKEM_X25519, hpke.KDF_HKDF_SHA256, hpke.AEAD_AESGCM128, seed)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	resolversInUse := make([]resolver, len(nameServers))
 
@@ -136,12 +97,9 @@ func main() {
 	}
 
 	target := &targetServer{
-		verbose:            false,
-		resolver:           resolversInUse,
-		odohKeyPair:        keyPair,
-		telemetryClient:    getTelemetryInstance(telemetryType),
-		serverInstanceName: serverName,
-		experimentId:       experimentID,
+		verbose:     false,
+		resolver:    resolversInUse,
+		odohKeyPair: keyPair,
 	}
 
 	proxy := &proxyServer{
@@ -153,27 +111,15 @@ func main() {
 		},
 	}
 
-	server := odohServer{
-		endpoints: endpoints,
-		target:    target,
-		proxy:     proxy,
-		DOHURI:    fmt.Sprintf("%s/%s", targetURI, queryEndpoint),
-	}
-
-	http.HandleFunc(proxyEndpoint, server.proxy.proxyQueryHandler)
-	http.HandleFunc(queryEndpoint, server.target.targetQueryHandler)
-	http.HandleFunc(healthEndpoint, func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, "ok")
+	// HTTP handlers
+	http.HandleFunc("/proxy", proxy.proxyQueryHandler)
+	http.HandleFunc("/dns-query", target.targetQueryHandler)
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = fmt.Fprint(w, "ok")
 	})
-	http.HandleFunc(configEndpoint, target.configHandler)
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, "ODOH service\n")
-		fmt.Fprint(w, "----------------\n")
-		fmt.Fprintf(w, "Proxy endpoint: https://%s%s{?targethost,targetpath}\n", r.Host, server.endpoints["Proxy"])
-		fmt.Fprintf(w, "Target endpoint: https://%s%s{?dns}\n", r.Host, server.endpoints["Target"])
-		fmt.Fprint(w, "----------------\n")
-	})
+	http.HandleFunc("/.well-known/odohconfigs", target.configHandler)
 
-	log.Infoln("Starting ODoH listener on %s", opts.ListenAddr)
+	// Start the server
+	log.Infof("Starting ODoH listener on %s", opts.ListenAddr)
 	log.Fatal(http.ListenAndServeTLS(opts.ListenAddr, opts.Cert, opts.Key, nil))
 }

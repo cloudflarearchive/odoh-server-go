@@ -131,7 +131,7 @@ func TestConfigHandler(t *testing.T) {
 
 	handler := http.HandlerFunc(target.configHandler)
 
-	request, err := http.NewRequest("GET", configEndpoint, nil)
+	request, err := http.NewRequest("GET", "/.well-known/odohconfigs", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestQueryHandlerInvalidContentType(t *testing.T) {
 
 	handler := http.HandlerFunc(target.targetQueryHandler)
 
-	request, err := http.NewRequest("GET", queryEndpoint, nil)
+	request, err := http.NewRequest("GET", "/dns-query", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +179,7 @@ func TestQueryHandlerDoHWithPOST(t *testing.T) {
 	handler := http.HandlerFunc(target.targetQueryHandler)
 
 	q := r.queries[0]
-	request, err := http.NewRequest(http.MethodPost, queryEndpoint, bytes.NewReader([]byte(q)))
+	request, err := http.NewRequest(http.MethodPost, "/dns-query", bytes.NewReader([]byte(q)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,7 +213,7 @@ func TestQueryHandlerDoHWithGET(t *testing.T) {
 	q := r.queries[0]
 	encodedQuery := base64.RawURLEncoding.EncodeToString([]byte(q))
 
-	request, err := http.NewRequest(http.MethodGet, queryEndpoint+"?dns="+encodedQuery, nil)
+	request, err := http.NewRequest(http.MethodGet, "/dns-query?dns="+encodedQuery, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,7 +246,7 @@ func TestQueryHandlerDoHWithInvalidMethod(t *testing.T) {
 
 	q := r.queries[0]
 	encodedQuery := base64.RawURLEncoding.EncodeToString([]byte(q))
-	request, err := http.NewRequest(http.MethodPut, queryEndpoint+"?dns="+encodedQuery, nil)
+	request, err := http.NewRequest(http.MethodPut, "/dns-query"+"?dns="+encodedQuery, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -273,7 +273,7 @@ func TestQueryHandlerODoHWithInvalidMethod(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	request, err := http.NewRequest(http.MethodGet, queryEndpoint, bytes.NewReader(encryptedQuery.Marshal()))
+	request, err := http.NewRequest(http.MethodGet, "/dns-query", bytes.NewReader(encryptedQuery.Marshal()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -300,7 +300,7 @@ func TestQueryHandlerODoH(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	request, err := http.NewRequest(http.MethodPost, queryEndpoint, bytes.NewReader(encryptedQuery.Marshal()))
+	request, err := http.NewRequest(http.MethodPost, "/dns-query", bytes.NewReader(encryptedQuery.Marshal()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -350,7 +350,7 @@ func TestQueryHandlerODoHWithInvalidKey(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	request, err := http.NewRequest(http.MethodPost, queryEndpoint, bytes.NewReader(encryptedQuery.Marshal()))
+	request, err := http.NewRequest(http.MethodPost, "/dns-query", bytes.NewReader(encryptedQuery.Marshal()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -379,7 +379,7 @@ func TestQueryHandlerODoHWithCorruptCiphertext(t *testing.T) {
 	queryBytes := encryptedQuery.Marshal()
 	queryBytes[len(queryBytes)-1] ^= 0xFF
 
-	request, err := http.NewRequest(http.MethodPost, queryEndpoint, bytes.NewReader(queryBytes))
+	request, err := http.NewRequest(http.MethodPost, "/dns-query", bytes.NewReader(queryBytes))
 	if err != nil {
 		t.Fatal(err)
 	}
