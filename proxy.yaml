@@ -1,4 +1,0 @@
-# [START runtime]
-service: odoh-proxy
-runtime: go114
-# [END runtime]
