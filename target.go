@@ -27,17 +27,16 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"math/rand"
 	"net/http"
 	"time"
 
-	odoh "github.com/cloudflare/odoh-go"
+	"github.com/cloudflare/odoh-go"
 	"github.com/miekg/dns"
 )
 
 type targetServer struct {
 	verbose            bool
-	resolver           []resolver
+	resolver           resolver
 	odohKeyPair        odoh.ObliviousDoHKeyPair
 	telemetryClient    *telemetry
 	serverInstanceName string
@@ -132,9 +131,7 @@ func (s *targetServer) dohQueryHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	timestamp.TargetQueryDecryptionTime = time.Now().UnixNano()
 
-	availableResolvers := len(s.resolver)
-	chosenResolver := rand.Intn(availableResolvers)
-	packedResponse, err := s.resolveQueryWithResolver(query, s.resolver[chosenResolver])
+	packedResponse, err := s.resolveQueryWithResolver(query, s.resolver)
 	if err != nil {
 		log.Println("Failed resolving DNS query:", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -146,7 +143,7 @@ func (s *targetServer) dohQueryHandler(w http.ResponseWriter, r *http.Request) {
 	timestamp.EndTime = endTime
 
 	exp.Timestamp = timestamp
-	exp.Resolver = s.resolver[chosenResolver].name()
+	exp.Resolver = s.resolver.name()
 	exp.Status = true
 
 	if s.telemetryClient.logClient != nil {
@@ -217,8 +214,7 @@ func (s *targetServer) odohQueryHandler(w http.ResponseWriter, r *http.Request) 
 	queryParseAndDecryptionCompleteTime := time.Now().UnixNano()
 	timestamp.TargetQueryDecryptionTime = queryParseAndDecryptionCompleteTime
 
-	chosenResolver := rand.Intn(len(s.resolver))
-	packedResponse, err := s.resolveQueryWithResolver(query, s.resolver[chosenResolver])
+	packedResponse, err := s.resolveQueryWithResolver(query, s.resolver)
 	if err != nil {
 		log.Println("resolveQueryWithResolver failed:", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -257,7 +253,7 @@ func (s *targetServer) odohQueryHandler(w http.ResponseWriter, r *http.Request) 
 	timestamp.EndTime = returnResponseTime
 
 	exp.Timestamp = timestamp
-	exp.Resolver = s.resolver[chosenResolver].name()
+	exp.Resolver = s.resolver.name()
 	exp.Status = true
 
 	if s.telemetryClient.logClient != nil {

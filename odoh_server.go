@@ -51,15 +51,11 @@ var version = "dev"
 // CLI flags
 var opts struct {
 	ListenAddr string `short:"l" long:"listen" description:"Address to listen on" default:"localhost:8080"`
+	Resolver   string `short:"r" long:"resolver" description:"Upstream DNS resolver to query" default:"1.1.1.1:53"`
 	Cert       string `short:"c" long:"cert" description:"TLS certificate file"`
 	Key        string `short:"k" long:"key" description:"TLS key file"`
 	Verbose    bool   `short:"v" long:"verbose" description:"Enable verbose logging"`
 }
-
-var (
-	// DNS constants. Fill in a DNS server to forward to here.
-	nameServers = []string{"1.1.1.1:53", "8.8.8.8:53", "9.9.9.9:53"}
-)
 
 func main() {
 	// Parse cli flags
@@ -86,19 +82,12 @@ func main() {
 		log.Fatal(err)
 	}
 
-	resolversInUse := make([]resolver, len(nameServers))
-
-	for index := 0; index < len(nameServers); index++ {
-		resolver := &targetResolver{
-			timeout:    2500 * time.Millisecond,
-			nameserver: nameServers[index],
-		}
-		resolversInUse[index] = resolver
-	}
-
 	target := &targetServer{
-		verbose:     false,
-		resolver:    resolversInUse,
+		verbose: false,
+		resolver: &targetResolver{
+			timeout:    2500 * time.Millisecond,
+			nameserver: opts.Resolver,
+		},
 		odohKeyPair: keyPair,
 	}
 
