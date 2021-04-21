@@ -24,14 +24,16 @@ package main
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"time"
 
 	"github.com/cloudflare/odoh-go"
 	"github.com/miekg/dns"
+	log "github.com/sirupsen/logrus"
 )
 
 type targetServer struct {
@@ -59,7 +61,7 @@ func (s *targetServer) parseQueryFromRequest(r *http.Request) (*dns.Msg, error) 
 	case http.MethodGet:
 		var queryBody string
 		if queryBody = r.URL.Query().Get("dns"); queryBody == "" {
-			return nil, fmt.Errorf("Missing DNS query parameter in GET request")
+			return nil, fmt.Errorf("missing DNS query parameter in GET request")
 		}
 
 		encodedMessage, err := base64.RawURLEncoding.DecodeString(queryBody)
@@ -73,7 +75,12 @@ func (s *targetServer) parseQueryFromRequest(r *http.Request) (*dns.Msg, error) 
 			return nil, fmt.Errorf("incorrect content type, expected '%s', got %s", dnsMessageContentType, r.Header.Get("Content-Type"))
 		}
 
-		defer r.Body.Close()
+		defer func(body io.ReadCloser) {
+			err := body.Close()
+			if err != nil {
+				log.Warn(err)
+			}
+		}(r.Body)
 		encodedMessage, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			return nil, err
@@ -100,10 +107,17 @@ func (s *targetServer) resolveQueryWithResolver(q *dns.Msg, r resolver) ([]byte,
 	response, err := r.resolve(q)
 	elapsed := time.Since(start)
 
-	packedResponse, err := response.Pack()
-	if err != nil {
-		log.Println("Failed encoding DNS response:", err)
-		return nil, err
+	var packedResponse []byte
+	if response != nil {
+		packedResponse, err = response.Pack()
+		if err != nil {
+			log.Warnf("failed encoding DNS response: %s", err)
+			return nil, err
+		}
+	} else {
+		errMsg := "empty response from resolver"
+		log.Warnf(errMsg)
+		return nil, errors.New(errMsg)
 	}
 
 	if s.verbose {
@@ -153,15 +167,23 @@ func (s *targetServer) dohQueryHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", dnsMessageContentType)
-	w.Write(packedResponse)
+	_, err = w.Write(packedResponse)
+	if err != nil {
+		log.Warn(err)
+	}
 }
 
 func (s *targetServer) parseObliviousQueryFromRequest(r *http.Request) (odoh.ObliviousDNSMessage, error) {
 	if r.Method != http.MethodPost {
-		return odoh.ObliviousDNSMessage{}, fmt.Errorf("Unsupported HTTP method for Oblivious DNS query: %s", r.Method)
+		return odoh.ObliviousDNSMessage{}, fmt.Errorf("unsupported HTTP method for Oblivious DNS query: %s", r.Method)
 	}
 
-	defer r.Body.Close()
+	defer func(body io.ReadCloser) {
+		err := body.Close()
+		if err != nil {
+			log.Warn(err)
+		}
+	}(r.Body)
 	encryptedMessageBytes, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return odoh.ObliviousDNSMessage{}, err
@@ -263,7 +285,10 @@ func (s *targetServer) odohQueryHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	w.Header().Set("Content-Type", odohMessageContentType)
-	w.Write(packedResponseMessage)
+	_, err = w.Write(packedResponseMessage)
+	if err != nil {
+		log.Warn(err)
+	}
 }
 
 func (s *targetServer) targetQueryHandler(w http.ResponseWriter, r *http.Request) {
@@ -281,10 +306,11 @@ func (s *targetServer) targetQueryHandler(w http.ResponseWriter, r *http.Request
 	}
 }
 
-func (s *targetServer) configHandler(w http.ResponseWriter, r *http.Request) {
-	log.Printf("%s Handling %s\n", r.Method, r.URL.Path)
-
+func (s *targetServer) configHandler(w http.ResponseWriter, _ *http.Request) {
 	configSet := []odoh.ObliviousDoHConfig{s.odohKeyPair.Config}
 	configs := odoh.CreateObliviousDoHConfigs(configSet)
-	w.Write(configs.Marshal())
+	_, err := w.Write(configs.Marshal())
+	if err != nil {
+		log.Warn(err)
+	}
 }
