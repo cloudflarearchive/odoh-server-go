@@ -26,14 +26,26 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/cisco/go-hpke"
-	odoh "github.com/cloudflare/odoh-go"
+	"github.com/cloudflare/odoh-go"
+	"github.com/jessevdk/go-flags"
+	log "github.com/sirupsen/logrus"
 )
+
+// Set by build process
+var version = "dev"
+
+// CLI flags
+var opts struct {
+	ListenAddr string `short:"l" long:"listen" description:"Address to listen on" default:"localhost:8080"`
+	Cert       string `short:"c" long:"cert" description:"TLS certificate file"`
+	Key        string `short:"k" long:"key" description:"TLS key file"`
+	Verbose    bool   `short:"v" long:"verbose" description:"Enable verbose logging"`
+}
 
 const (
 	// HPKE constants
@@ -59,8 +71,6 @@ const (
 	targetNameEnvironmentVariable    = "TARGET_INSTANCE_NAME"
 	experimentIDEnvironmentVariable  = "EXPERIMENT_ID"
 	telemetryTypeEnvironmentVariable = "TELEMETRY_TYPE"
-	certificateEnvironmentVariable   = "CERT"
-	keyEnvironmentVariable           = "KEY"
 )
 
 var (
@@ -76,25 +86,20 @@ type odohServer struct {
 	DOHURI    string
 }
 
-func (s odohServer) indexHandler(w http.ResponseWriter, r *http.Request) {
-	log.Printf("%s Handling %s\n", r.Method, r.URL.Path)
-	fmt.Fprint(w, "ODOH service\n")
-	fmt.Fprint(w, "----------------\n")
-	fmt.Fprintf(w, "Proxy endpoint: https://%s%s{?targethost,targetpath}\n", r.Host, s.endpoints["Proxy"])
-	fmt.Fprintf(w, "Target endpoint: https://%s%s{?dns}\n", r.Host, s.endpoints["Target"])
-	fmt.Fprint(w, "----------------\n")
-}
-
-func (s odohServer) healthCheckHandler(w http.ResponseWriter, r *http.Request) {
-	log.Printf("%s Handling %s\n", r.Method, r.URL.Path)
-	fmt.Fprint(w, "ok")
-}
-
 func main() {
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = defaultPort
+	// Parse cli flags
+	_, err := flags.ParseArgs(&opts, os.Args)
+	if err != nil {
+		os.Exit(1)
 	}
+
+	// Enable debug logging in development releases
+	if //noinspection GoBoolExpressions
+	version == "devel" || opts.Verbose {
+		log.SetLevel(log.DebugLevel)
+	}
+
+	log.Infof("Starting bcg %s", version)
 
 	var seed []byte
 	if seedHex := os.Getenv(secretSeedEnvironmentVariable); seedHex != "" {
@@ -109,37 +114,9 @@ func main() {
 		rand.Read(seed)
 	}
 
-	var serverName string
-	if serverNameSetting := os.Getenv(targetNameEnvironmentVariable); serverNameSetting != "" {
-		serverName = serverNameSetting
-	} else {
-		serverName = "server_localhost"
-	}
-	log.Printf("Setting Server Name as %v", serverName)
-
-	var experimentID string
-	if experimentID = os.Getenv(experimentIDEnvironmentVariable); experimentID == "" {
-		experimentID = "EXP_LOCAL"
-	}
-
-	var telemetryType string
-	if telemetryType = os.Getenv(telemetryTypeEnvironmentVariable); telemetryType == "" {
-		telemetryType = "LOG"
-	}
-
-	var certFile string
-	if certFile = os.Getenv(certificateEnvironmentVariable); certFile == "" {
-		certFile = "cert.pem"
-	}
-
-	var keyFile string
-	if keyFile = os.Getenv(keyEnvironmentVariable); keyFile == "" {
-		keyFile = "key.pem"
-	}
-
 	keyPair, err := odoh.CreateKeyPairFromSeed(kemID, kdfID, aeadID, seed)
 	if err != nil {
-		log.Fatal("Failed to create a private key. Exiting now.")
+		log.Fatal(err)
 	}
 
 	endpoints := make(map[string]string)
@@ -185,10 +162,18 @@ func main() {
 
 	http.HandleFunc(proxyEndpoint, server.proxy.proxyQueryHandler)
 	http.HandleFunc(queryEndpoint, server.target.targetQueryHandler)
-	http.HandleFunc(healthEndpoint, server.healthCheckHandler)
+	http.HandleFunc(healthEndpoint, func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "ok")
+	})
 	http.HandleFunc(configEndpoint, target.configHandler)
-	http.HandleFunc("/", server.indexHandler)
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "ODOH service\n")
+		fmt.Fprint(w, "----------------\n")
+		fmt.Fprintf(w, "Proxy endpoint: https://%s%s{?targethost,targetpath}\n", r.Host, server.endpoints["Proxy"])
+		fmt.Fprintf(w, "Target endpoint: https://%s%s{?dns}\n", r.Host, server.endpoints["Target"])
+		fmt.Fprint(w, "----------------\n")
+	})
 
-	log.Printf("Listening on port %v with cert %v and key %v\n", port, certFile, keyFile)
-	log.Fatal(http.ListenAndServeTLS(fmt.Sprintf(":%s", port), certFile, keyFile, nil))
+	log.Infoln("Starting ODoH listener on %s", opts.ListenAddr)
+	log.Fatal(http.ListenAndServeTLS(opts.ListenAddr, opts.Cert, opts.Key, nil))
 }
