@@ -1,4 +1,4 @@
-module github.com/emeraldonion/odoh-server-go
+module github.com/emeraldonion/odohd
 
 go 1.16
 
