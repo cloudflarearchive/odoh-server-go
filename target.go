@@ -38,7 +38,6 @@ import (
 )
 
 type targetServer struct {
-	verbose            bool
 	resolver           resolver
 	odohKeyPair        odoh.ObliviousDoHKeyPair
 	telemetryClient    *telemetry
@@ -100,9 +99,7 @@ func (s *targetServer) resolveQueryWithResolver(q *dns.Msg, r resolver) ([]byte,
 		return nil, err
 	}
 
-	if s.verbose {
-		log.Printf("Query=%s\n", packedQuery)
-	}
+	log.Debugf("Query=%s\n", packedQuery)
 
 	start := time.Now()
 	response, err := r.resolve(q)
@@ -125,9 +122,7 @@ func (s *targetServer) resolveQueryWithResolver(q *dns.Msg, r resolver) ([]byte,
 		return nil, errors.New(errMsg)
 	}
 
-	if s.verbose {
-		log.Printf("Answer=%s elapsed=%s\n", packedResponse, elapsed.String())
-	}
+	log.Debugf("Answer=%s elapsed=%s\n", packedResponse, elapsed.String())
 
 	return packedResponse, err
 }
@@ -204,9 +199,7 @@ func (s *targetServer) createObliviousResponseForQuery(context odoh.ResponseCont
 		return odoh.ObliviousDNSMessage{}, err
 	}
 
-	if s.verbose {
-		log.Printf("Encrypted response: %x", odohResponse)
-	}
+	log.Debugf("Encrypted response: %x", odohResponse)
 
 	return odohResponse, err
 }
@@ -282,9 +275,7 @@ func (s *targetServer) odohQueryHandler(w http.ResponseWriter, r *http.Request) 
 	answerEncryptionAndSerializeCompletionTime := time.Now().UnixNano()
 	timestamp.TargetAnswerEncryptionTime = answerEncryptionAndSerializeCompletionTime
 
-	if s.verbose {
-		log.Printf("Target response: %x", packedResponseMessage)
-	}
+	log.Debugf("target response: %x", packedResponseMessage)
 
 	returnResponseTime := time.Now().UnixNano()
 	timestamp.EndTime = returnResponseTime
@@ -307,9 +298,7 @@ func (s *targetServer) odohQueryHandler(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *targetServer) targetQueryHandler(w http.ResponseWriter, r *http.Request) {
-	if s.verbose {
-		log.Printf("%s Handling %s\n", r.Method, r.URL.Path)
-	}
+	log.Debugf("%s Handling %s\n", r.Method, r.URL.Path)
 
 	if r.Header.Get("Content-Type") == dnsMessageContentType {
 		s.dohQueryHandler(w, r)

@@ -68,6 +68,7 @@ func main() {
 	if //noinspection GoBoolExpressions
 	version == "devel" || opts.Verbose {
 		log.SetLevel(log.DebugLevel)
+		log.Debugln("Verbose logging enabled")
 	}
 
 	// Random seed for HPKE keypair
@@ -83,7 +84,6 @@ func main() {
 	}
 
 	target := &targetServer{
-		verbose: opts.Verbose,
 		resolver: &targetResolver{
 			timeout:    2500 * time.Millisecond,
 			nameserver: opts.Resolver,
