@@ -51,9 +51,10 @@ var version = "dev"
 // CLI flags
 var opts struct {
 	ListenAddr string `short:"l" long:"listen" description:"Address to listen on" default:"localhost:8080"`
-	Resolver   string `short:"r" long:"resolver" description:"Upstream DNS resolver to query" default:"1.1.1.1:53"`
-	Cert       string `short:"c" long:"cert" description:"TLS certificate file" required:"true"`
-	Key        string `short:"k" long:"key" description:"TLS key file" required:"true"`
+	Resolver   string `short:"r" long:"resolver" description:"Target DNS resolver to query" default:"1.1.1.1:53"`
+	DisableTls bool   `short:"t" long:"no-tls" description:"Disable TLS"`
+	Cert       string `short:"c" long:"cert" description:"TLS certificate file"`
+	Key        string `short:"k" long:"key" description:"TLS key file"`
 	Verbose    bool   `short:"v" long:"verbose" description:"Enable verbose logging"`
 }
 
@@ -69,6 +70,11 @@ func main() {
 	version == "devel" || opts.Verbose {
 		log.SetLevel(log.DebugLevel)
 		log.Debugln("Verbose logging enabled")
+	}
+
+	// Validate TLS cert/key
+	if !opts.DisableTls && (opts.Cert == "" || opts.Key == "") {
+		log.Fatal("--cert and --key must be set when TLS is enabled")
 	}
 
 	// Random seed for HPKE keypair
@@ -110,5 +116,9 @@ func main() {
 
 	// Start the server
 	log.Infof("Starting ODoH listener on %s", opts.ListenAddr)
-	log.Fatal(http.ListenAndServeTLS(opts.ListenAddr, opts.Cert, opts.Key, nil))
+	if opts.DisableTls { // HTTP listener
+		log.Fatal(http.ListenAndServe(opts.ListenAddr, nil))
+	} else { // HTTPS listener
+		log.Fatal(http.ListenAndServeTLS(opts.ListenAddr, opts.Cert, opts.Key, nil))
+	}
 }
