@@ -83,7 +83,7 @@ func main() {
 	}
 
 	target := &targetServer{
-		verbose: false,
+		verbose: opts.Verbose,
 		resolver: &targetResolver{
 			timeout:    2500 * time.Millisecond,
 			nameserver: opts.Resolver,
