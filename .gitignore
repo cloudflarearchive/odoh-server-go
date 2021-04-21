@@ -1,1 +1,3 @@
 .idea
+*.pem
+odoh-server
