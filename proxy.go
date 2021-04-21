@@ -58,6 +58,8 @@ func forwardProxyRequest(client *http.Client, targetName string, targetPath stri
 }
 
 func (p *proxyServer) proxyQueryHandler(w http.ResponseWriter, r *http.Request) {
+	log.Debug("handling proxy request")
+
 	if r.Method != "POST" {
 		p.lastError = errWrongMethod
 		log.Printf(p.lastError.Error())
@@ -80,6 +82,8 @@ func (p *proxyServer) proxyQueryHandler(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
+
+	log.Debugf("targethost: %s targetpath: %s", targetName, targetPath)
 
 	defer func(body io.ReadCloser) {
 		err := body.Close()
