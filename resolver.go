@@ -31,17 +31,12 @@ import (
 )
 
 type resolver interface {
-	name() string
 	resolve(query *dns.Msg) (*dns.Msg, error)
 }
 
 type targetResolver struct {
 	nameserver string
 	timeout    time.Duration
-}
-
-func (s targetResolver) name() string {
-	return s.nameserver
 }
 
 func (s targetResolver) resolve(query *dns.Msg) (*dns.Msg, error) {
