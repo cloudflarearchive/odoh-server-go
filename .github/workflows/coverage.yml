@@ -1,0 +1,33 @@
+name: Build and Test
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "*.go"
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ^1.14
+
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v2
+
+      - name: Build
+        run: go build -v ./...
+
+      - name: Run test
+        run: gopherbadger -style=for-the-badge -covercmd "go test -v -race -covermode atomic -coverprofile=coverage.out ./... && go tool cover -func=coverage.out"
+
+      - name: Commit coverage badge
+        uses: EndBug/add-and-commit@v7
+        with:
+          message: "ci: update coverage"
+          add: "coverage_badge.png"
