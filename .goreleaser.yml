@@ -15,7 +15,7 @@ nfpms:
   - id: odohd
     package_name: odohd
     vendor: Emerald Onion
-    homepage: https://packetframe.com
+    homepage: https://github.com/emeraldonion/odohd
     maintainer: Nate Sales <nate@emeraldonion.org>
     description: Oblivious DNS over HTTPS server
     license: MIT
