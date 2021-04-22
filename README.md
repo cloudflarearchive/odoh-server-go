@@ -21,6 +21,8 @@ Application Options:
   -t, --no-tls    Disable TLS
   -c, --cert=     TLS certificate file
   -k, --key=      TLS key file
+  --resolver-timeout= Resolver timeout (seconds) (default: 2.5)
+  --proxy-timeout=    Proxy timeout (seconds) (default: 2.5)
   -v, --verbose   Enable verbose logging
 
 Help Options:

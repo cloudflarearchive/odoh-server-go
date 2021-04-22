@@ -50,12 +50,14 @@ var version = "dev"
 
 // CLI flags
 var opts struct {
-	ListenAddr string `short:"l" long:"listen" description:"Address to listen on" default:"localhost:8080"`
-	Resolver   string `short:"r" long:"resolver" description:"Target DNS resolver" default:"127.0.0.1:53"`
-	DisableTls bool   `short:"t" long:"no-tls" description:"Disable TLS"`
-	Cert       string `short:"c" long:"cert" description:"TLS certificate file"`
-	Key        string `short:"k" long:"key" description:"TLS key file"`
-	Verbose    bool   `short:"v" long:"verbose" description:"Enable verbose logging"`
+	ListenAddr      string  `short:"l" long:"listen" description:"Address to listen on" default:"localhost:8080"`
+	Resolver        string  `short:"r" long:"resolver" description:"Target DNS resolver" default:"127.0.0.1:53"`
+	DisableTls      bool    `short:"t" long:"no-tls" description:"Disable TLS"`
+	Cert            string  `short:"c" long:"cert" description:"TLS certificate file"`
+	Key             string  `short:"k" long:"key" description:"TLS key file"`
+	ResolverTimeout float32 `long:"resolver-timeout" description:"Resolver timeout (seconds)" default:"2.5"`
+	ProxyTimeout    float32 `long:"proxy-timeout" description:"Proxy timeout (seconds)" default:"2.5"`
+	Verbose         bool    `short:"v" long:"verbose" description:"Enable verbose logging"`
 }
 
 func main() {
@@ -89,19 +91,21 @@ func main() {
 		log.Fatal(err)
 	}
 
+	log.Debugf("resolver timeout: %+v", opts.ResolverTimeout)
 	target := &targetServer{
 		resolver: &targetResolver{
-			timeout:    2500 * time.Millisecond,
+			timeout:    time.Duration(opts.ResolverTimeout) * time.Second,
 			nameserver: opts.Resolver,
 		},
 		odohKeyPair: keyPair,
 	}
 
+	log.Debugf("proxy timeout: %+v", opts.ProxyTimeout)
 	proxy := &proxyServer{
 		client: &http.Client{
 			Transport: &http.Transport{
 				MaxIdleConnsPerHost: 1024,
-				TLSHandshakeTimeout: 0 * time.Second,
+				TLSHandshakeTimeout: time.Duration(opts.ProxyTimeout) * time.Second,
 			},
 		},
 	}
