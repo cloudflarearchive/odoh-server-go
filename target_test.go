@@ -479,3 +479,34 @@ func TestODoHResolutionWithRealResolver(t *testing.T) {
 		t.Fatal("Invalid content type response")
 	}
 }
+
+func TestTargetTimeout(t *testing.T) {
+	r := &targetResolver{
+		timeout:    time.Second,
+		nameserver: "127.127.127.127:0",
+	}
+	target := createTarget(t, r)
+	handler := http.HandlerFunc(target.targetQueryHandler)
+
+	// valid dns query
+	q := new(dns.Msg)
+	q.SetQuestion("example.com.", dns.TypeA)
+	packedQuery, err := q.Pack()
+	if err != nil {
+		t.Fatal(err)
+	}
+	obliviousQuery := odoh.CreateObliviousDNSQuery(packedQuery, 0)
+	encryptedQuery, _, err := target.odohKeyPair.Config.Contents.EncryptQuery(obliviousQuery)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	request, err := http.NewRequest(http.MethodPost, "/dns-query", bytes.NewReader(encryptedQuery.Marshal()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Add("Content-Type", odohMessageContentType)
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, request)
+}
