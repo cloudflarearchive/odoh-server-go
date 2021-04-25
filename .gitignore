@@ -2,3 +2,4 @@
 *.pem
 odohd
 dist/
+cover.out
