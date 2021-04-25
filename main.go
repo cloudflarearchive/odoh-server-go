@@ -60,37 +60,24 @@ var opts struct {
 	Verbose         bool    `short:"v" long:"verbose" description:"Enable verbose logging"`
 }
 
-func main() {
-	// Parse cli flags
-	_, err := flags.ParseArgs(&opts, os.Args)
-	if err != nil {
-		os.Exit(1)
-	}
-
-	// Enable debug logging in development releases
-	if //noinspection GoBoolExpressions
-	version == "devel" || opts.Verbose {
-		log.SetLevel(log.DebugLevel)
-		log.Debugln("Verbose logging enabled")
-	}
-
-	// Validate TLS cert/key
-	if !opts.DisableTls && (opts.Cert == "" || opts.Key == "") {
-		log.Fatal("--cert and --key must be set when TLS is enabled")
-	}
-
+func keyPair() (*odoh.ObliviousDoHKeyPair, error) {
 	// Random seed for HPKE keypair
 	seed := make([]byte, defaultSeedLength)
-	_, err = rand.Read(seed)
+	_, err := rand.Read(seed)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
-	keyPair, err := odoh.CreateKeyPairFromSeed(hpke.DHKEM_X25519, hpke.KDF_HKDF_SHA256, hpke.AEAD_AESGCM128, seed)
+	kp, err := odoh.CreateKeyPairFromSeed(hpke.DHKEM_X25519, hpke.KDF_HKDF_SHA256, hpke.AEAD_AESGCM128, seed)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
+	return &kp, err
+}
+
+// serverPair returns a target and proxy server
+func serverPair(keyPair odoh.ObliviousDoHKeyPair) (*targetServer, *proxyServer) {
 	log.Debugf("resolver timeout: %+v", opts.ResolverTimeout)
 	target := &targetServer{
 		resolver: &targetResolver{
@@ -110,19 +97,55 @@ func main() {
 		},
 	}
 
-	// HTTP handlers
+	return target, proxy
+}
+
+// setupHandlers configures HTTP handlers
+func setupHandlers(target *targetServer, proxy *proxyServer) {
 	http.HandleFunc("/proxy", proxy.proxyQueryHandler)
 	http.HandleFunc("/dns-query", target.targetQueryHandler)
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = fmt.Fprint(w, "ok")
 	})
 	http.HandleFunc("/.well-known/odohconfigs", target.configHandler)
+}
 
+// serve starts the HTTP server
+func serve(listenAddr string, tls bool) {
 	// Start the server
-	log.Infof("Starting ODoH listener on %s", opts.ListenAddr)
-	if opts.DisableTls { // HTTP listener
-		log.Fatal(http.ListenAndServe(opts.ListenAddr, nil))
-	} else { // HTTPS listener
-		log.Fatal(http.ListenAndServeTLS(opts.ListenAddr, opts.Cert, opts.Key, nil))
+	log.Infof("Starting ODoH listener on %s", listenAddr)
+	if tls { // HTTPS listener
+		log.Fatal(http.ListenAndServeTLS(listenAddr, opts.Cert, opts.Key, nil))
+	} else { // HTTP listener
+		log.Fatal(http.ListenAndServe(listenAddr, nil))
 	}
+}
+
+func main() {
+	// Parse cli flags
+	_, err := flags.ParseArgs(&opts, os.Args)
+	if err != nil {
+		os.Exit(1)
+	}
+
+	// Enable debug logging in development releases
+	if //noinspection GoBoolExpressions
+	version == "devel" || opts.Verbose {
+		log.SetLevel(log.DebugLevel)
+		log.Debugln("Verbose logging enabled")
+	}
+
+	// Validate TLS cert/key
+	if !opts.DisableTls && (opts.Cert == "" || opts.Key == "") {
+		log.Fatal("--cert and --key must be set when TLS is enabled")
+	}
+
+	kp, err := keyPair()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	proxy, target := serverPair(*kp)
+	setupHandlers(proxy, target)
+	serve(opts.ListenAddr, !opts.DisableTls)
 }
