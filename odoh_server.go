@@ -133,8 +133,10 @@ func main() {
 	}
 
 	var keyFile string
+	enableTLSServe := true
 	if keyFile = os.Getenv(keyEnvironmentVariable); keyFile == "" {
 		keyFile = "key.pem"
+		enableTLSServe = false
 	}
 
 	keyPair, err := odoh.CreateKeyPairFromSeed(kemID, kdfID, aeadID, seed)
@@ -189,6 +191,12 @@ func main() {
 	http.HandleFunc(configEndpoint, target.configHandler)
 	http.HandleFunc("/", server.indexHandler)
 
-	log.Printf("Listening on port %v with cert %v and key %v\n", port, certFile, keyFile)
-	log.Fatal(http.ListenAndServeTLS(fmt.Sprintf(":%s", port), certFile, keyFile, nil))
+	if enableTLSServe {
+		log.Printf("Listening on port %v with cert %v and key %v\n", port, certFile, keyFile)
+		log.Fatal(http.ListenAndServeTLS(fmt.Sprintf(":%s", port), certFile, keyFile, nil))
+	} else {
+		log.Printf("Listening on port %v without enabling TLS\n", port)
+		log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", port), nil))
+	}
+
 }
