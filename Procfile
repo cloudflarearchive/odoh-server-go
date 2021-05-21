@@ -1,1 +1,1 @@
-web: ./bin/odoh-server
+web: ./bin/odoh-server-go
