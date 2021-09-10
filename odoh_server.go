@@ -82,6 +82,7 @@ func (s odohServer) healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	log.SetFormatter(&log.JSONFormatter{})
 	logLocation := os.Getenv("LOG")
 	if logLocation == "" {
 		logLocation = "./logs/"
