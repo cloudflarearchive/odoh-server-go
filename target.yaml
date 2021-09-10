@@ -1,9 +1,0 @@
-# [START runtime]
-service: odoh-target
-runtime: go114
-env_variables:
-  SEED_SECRET_KEY: "99fe7e7aa97178f40c8cc145d38b3d25"
-  GOOGLE_APPLICATION_CREDENTIALS: "odoh-target-service-account.json"
-  TARGET_INSTANCE_NAME: "server_target_gcp"
-  EXPERIMENT_ID: "EXP_1"
-# [END runtime]
