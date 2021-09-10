@@ -27,8 +27,9 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type proxyServer struct {
@@ -43,20 +44,48 @@ var (
 	errEmptyRequestBody  = fmt.Errorf("Missing request body")
 )
 
-func forwardProxyRequest(client *http.Client, targetName string, targetPath string, body []byte, headerContentType string) (*http.Response, error) {
+func forwardProxyRequest(client *http.Client, targetName string, targetPath string, body []byte, r *http.Request) (*http.Response, error) {
 	targetURL := "https://" + targetName + targetPath
-	req, err := http.NewRequest("POST", targetURL, bytes.NewReader(body))
+	req, err := http.NewRequest(r.Method, targetURL, bytes.NewReader(body))
 	if err != nil {
-		log.Println("Failed creating target POST request")
-		return nil, errors.New("failed creating target POST request")
+		log.WithFields(
+			log.Fields{
+				"Method": r.Method,
+				"URL":    r.URL.Path,
+				"Target": targetName,
+				"Path":   targetPath,
+			},
+		).Info("Not Able to Create HTTP Request %s", err)
+		// log.Println("Failed creating target POST request")
+		return nil, errors.New("failed creating target " + r.Method + " request")
 	}
-	req.Header.Set("Content-Type", headerContentType)
+	for name, values := range r.Header {
+		// Loop over all values for the name.
+		for _, value := range values {
+			log.WithFields(
+				log.Fields{
+					"Method": r.Method,
+					"URL":    r.URL.Path,
+					"Target": targetName,
+					"Path":   targetPath,
+				},
+			).Info("Setting Request Header " + name + ": " + value)
+			req.Header.Set(name, value)
+		}
+	}
 
 	return client.Do(req)
 }
 
 func (p *proxyServer) proxyQueryHandler(w http.ResponseWriter, r *http.Request) {
-	log.Printf("%s Handling %s\n", r.Method, r.URL.Path)
+	log.SetFormatter(&log.JSONFormatter{})
+	log.WithFields(
+		log.Fields{
+			"Method": r.Method,
+			"URL":    r.URL.Path,
+		},
+	).Info("Handling Proxy Request")
+	// log.Printf("%s Handling %s\n", r.Method, r.URL.Path)
 
 	if r.Method != "POST" {
 		p.lastError = errWrongMethod
@@ -89,16 +118,37 @@ func (p *proxyServer) proxyQueryHandler(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
-
-	headerContentType := r.Header.Get("Content-Type")
-
-	response, err := forwardProxyRequest(p.client, targetName, targetPath, body, headerContentType)
+	log.WithFields(
+		log.Fields{
+			"Method": r.Method,
+			"URL":    r.URL.Path,
+			"Target": targetName,
+			"Path":   targetPath,
+		},
+	).Info("Forwarding Request To Target")
+	response, err := forwardProxyRequest(p.client, targetName, targetPath, body, r)
 	if err != nil {
+		log.WithFields(
+			log.Fields{
+				"Method": r.Method,
+				"URL":    r.URL.Path,
+				"Target": targetName,
+				"Path":   targetPath,
+			},
+		).Info("Error Response Received %s", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
 	if response.StatusCode != 200 {
+		log.WithFields(
+			log.Fields{
+				"Method": r.Method,
+				"URL":    r.URL.Path,
+				"Target": targetName,
+				"Path":   targetPath,
+			},
+		).Info("Non OK Response Code Received %s", response.StatusCode)
 		http.Error(w, http.StatusText(response.StatusCode), response.StatusCode)
 		return
 	}
@@ -106,10 +156,30 @@ func (p *proxyServer) proxyQueryHandler(w http.ResponseWriter, r *http.Request) 
 	defer response.Body.Close()
 	responseBody, err := ioutil.ReadAll(response.Body)
 	if err != nil {
+		log.WithFields(
+			log.Fields{
+				"Method": r.Method,
+				"URL":    r.URL.Path,
+				"Target": targetName,
+				"Path":   targetPath,
+			},
+		).Info("Not Able To Read Response Body %s", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-
-	w.Header().Set("Content-Type", headerContentType)
+	for name, values := range response.Header {
+		// Loop over all values for the name.
+		for _, value := range values {
+			log.WithFields(
+				log.Fields{
+					"Method": r.Method,
+					"URL":    r.URL.Path,
+					"Target": targetName,
+					"Path":   targetPath,
+				},
+			).Info("Setting Response Header " + name + ": " + value)
+			w.Header().Set(name, value)
+		}
+	}
 	w.Write(responseBody)
 }
