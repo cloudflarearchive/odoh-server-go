@@ -28,6 +28,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -44,6 +46,10 @@ var (
 	errEmptyRequestBody  = fmt.Errorf("Missing request body")
 )
 
+const (
+	authTokenEnvironmentVariable = "AUTH"
+)
+
 func forwardProxyRequest(client *http.Client, targetName string, targetPath string, body []byte, r *http.Request) (*http.Response, error) {
 	targetURL := "https://" + targetName + targetPath
 	req, err := http.NewRequest(r.Method, targetURL, bytes.NewReader(body))
@@ -56,7 +62,6 @@ func forwardProxyRequest(client *http.Client, targetName string, targetPath stri
 				"Path":   targetPath,
 			},
 		).Info("Not Able to Create HTTP Request %s", err)
-		// log.Println("Failed creating target POST request")
 		return nil, errors.New("failed creating target " + r.Method + " request")
 	}
 	for name, values := range r.Header {
@@ -85,7 +90,6 @@ func (p *proxyServer) proxyQueryHandler(w http.ResponseWriter, r *http.Request) 
 			"URL":    r.URL.Path,
 		},
 	).Info("Handling Proxy Request")
-	// log.Printf("%s Handling %s\n", r.Method, r.URL.Path)
 
 	if r.Method != "POST" {
 		p.lastError = errWrongMethod
@@ -97,7 +101,7 @@ func (p *proxyServer) proxyQueryHandler(w http.ResponseWriter, r *http.Request) 
 	targetName := r.URL.Query().Get("targethost")
 	if targetName == "" {
 		p.lastError = errMissingTargetHost
-		log.Printf(p.lastError.Error())
+		log.Error(p.lastError.Error())
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
@@ -105,7 +109,7 @@ func (p *proxyServer) proxyQueryHandler(w http.ResponseWriter, r *http.Request) 
 	targetPath := r.URL.Query().Get("targetpath")
 	if targetPath == "" {
 		p.lastError = errMissingTargetPath
-		log.Printf(p.lastError.Error())
+		log.Error(p.lastError.Error())
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
@@ -114,10 +118,22 @@ func (p *proxyServer) proxyQueryHandler(w http.ResponseWriter, r *http.Request) 
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil || len(body) == 0 {
 		p.lastError = errEmptyRequestBody
-		log.Printf(p.lastError.Error())
+		log.Error(p.lastError.Error())
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
+
+	var authFile string
+	if authFile = os.Getenv(authTokenEnvironmentVariable); authFile == "" {
+		authFile = "./.AuthToken"
+	}
+	auth, err := ioutil.ReadFile(authFile)
+	if err != nil {
+		log.Error("AuthToken Not Found, Not going to use token, %v", err)
+	} else {
+		r.Header.Add("Proxy-Authorization", strings.TrimSuffix(string(auth), "\n"))
+	}
+
 	log.WithFields(
 		log.Fields{
 			"Method": r.Method,

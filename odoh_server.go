@@ -107,7 +107,11 @@ func main() {
 	} else {
 		serverName = "server_localhost"
 	}
-	log.Printf("Setting Server Name as %v", serverName)
+	log.WithFields(
+		log.Fields{
+			"ServerName": serverName,
+		},
+	).Info("Starting Proxy Server")
 
 	var certFile string
 	if certFile = os.Getenv(certificateEnvironmentVariable); certFile == "" {
@@ -145,10 +149,20 @@ func main() {
 	http.HandleFunc("/", server.indexHandler)
 
 	if enableTLSServe {
-		log.Printf("Listening on port %v with cert %v and key %v\n", port, certFile, keyFile)
+		log.WithFields(
+			log.Fields{
+				"Port": port,
+				"Cert": certFile,
+				"Key":  keyFile,
+			},
+		).Info("Server Started With TLS Support")
 		log.Fatal(http.ListenAndServeTLS(fmt.Sprintf(":%s", port), certFile, keyFile, nil))
 	} else {
-		log.Printf("Listening on port %v without enabling TLS\n", port)
+		log.WithFields(
+			log.Fields{
+				"Port": port,
+			},
+		).Info("Server Started Without TLS Support")
 		log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", port), nil))
 	}
 
