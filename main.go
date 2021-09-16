@@ -50,14 +50,15 @@ var version = "dev"
 
 // CLI flags
 var opts struct {
-	ListenAddr      string  `short:"l" long:"listen" description:"Address to listen on" default:"localhost:8080"`
-	Resolver        string  `short:"r" long:"resolver" description:"Target DNS resolver" default:"127.0.0.1:53"`
-	DisableTls      bool    `short:"t" long:"no-tls" description:"Disable TLS"`
-	Cert            string  `short:"c" long:"cert" description:"TLS certificate file"`
-	Key             string  `short:"k" long:"key" description:"TLS key file"`
-	ResolverTimeout float32 `long:"resolver-timeout" description:"Resolver timeout (seconds)" default:"2.5"`
-	ProxyTimeout    float32 `long:"proxy-timeout" description:"Proxy timeout (seconds)" default:"2.5"`
-	Verbose         bool    `short:"v" long:"verbose" description:"Enable verbose logging"`
+	ListenAddr        string  `short:"l" long:"listen" description:"Address to listen on" default:"localhost:8080"`
+	MetricsListenAddr string  `short:"m" long:"metrics-listen" description:"Address to listen metrics server on" default:"localhost:8081"`
+	Resolver          string  `short:"r" long:"resolver" description:"Target DNS resolver" default:"127.0.0.1:53"`
+	DisableTls        bool    `short:"t" long:"no-tls" description:"Disable TLS"`
+	Cert              string  `short:"c" long:"cert" description:"TLS certificate file"`
+	Key               string  `short:"k" long:"key" description:"TLS key file"`
+	ResolverTimeout   float32 `long:"resolver-timeout" description:"Resolver timeout (seconds)" default:"2.5"`
+	ProxyTimeout      float32 `long:"proxy-timeout" description:"Proxy timeout (seconds)" default:"2.5"`
+	Verbose           bool    `short:"v" long:"verbose" description:"Enable verbose logging"`
 }
 
 func keyPair() (*odoh.ObliviousDoHKeyPair, error) {
@@ -128,7 +129,7 @@ func main() {
 
 	// Enable debug logging in development releases
 	if //noinspection GoBoolExpressions
-	version == "devel" || opts.Verbose {
+	version == "dev" || opts.Verbose {
 		log.SetLevel(log.DebugLevel)
 		log.Debugln("Verbose logging enabled")
 	}
@@ -137,6 +138,12 @@ func main() {
 	if !opts.DisableTls && (opts.Cert == "" || opts.Key == "") {
 		log.Fatal("--cert and --key must be set when TLS is enabled")
 	}
+
+	// Start metrics server
+	go func() {
+		log.Infof("Starting metrics server on %s", opts.MetricsListenAddr)
+		log.Fatal(metricsServe(opts.MetricsListenAddr))
+	}()
 
 	kp, err := keyPair()
 	if err != nil {
