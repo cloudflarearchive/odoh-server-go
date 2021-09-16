@@ -104,18 +104,16 @@ func serverPair(keyPair odoh.ObliviousDoHKeyPair) (*targetServer, *proxyServer) 
 func setupHandlers(target *targetServer, proxy *proxyServer) {
 	http.HandleFunc("/proxy", proxy.proxyQueryHandler)
 	http.HandleFunc("/dns-query", target.targetQueryHandler)
-	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		_, _ = fmt.Fprint(w, "ok")
-	})
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) { _, _ = fmt.Fprint(w, "ok") })
 	http.HandleFunc("/.well-known/odohconfigs", target.configHandler)
 }
 
 // serve starts the HTTP server
-func serve(listenAddr string, tls bool) {
+func serve(listenAddr string, tls bool, tlsCert, tlsKey string) {
 	// Start the server
 	log.Infof("Starting ODoH listener on %s", listenAddr)
 	if tls { // HTTPS listener
-		log.Fatal(http.ListenAndServeTLS(listenAddr, opts.Cert, opts.Key, nil))
+		log.Fatal(http.ListenAndServeTLS(listenAddr, tlsCert, tlsKey, nil))
 	} else { // HTTP listener
 		log.Fatal(http.ListenAndServe(listenAddr, nil))
 	}
@@ -147,5 +145,5 @@ func main() {
 
 	proxy, target := serverPair(*kp)
 	setupHandlers(proxy, target)
-	serve(opts.ListenAddr, !opts.DisableTls)
+	serve(opts.ListenAddr, !opts.DisableTls, opts.Cert, opts.Key)
 }

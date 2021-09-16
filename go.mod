@@ -7,7 +7,8 @@ require (
 	github.com/cloudflare/odoh-go v0.1.6
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/miekg/dns v1.1.41
+	github.com/prometheus/client_golang v1.11.0
 	github.com/sirupsen/logrus v1.8.1
+	github.com/stretchr/testify v1.6.1
 	golang.org/x/net v0.0.0-20210316092652-d523dce5a7f4 // indirect
-	golang.org/x/sys v0.0.0-20210403161142-5e06dd20ab57 // indirect
 )
