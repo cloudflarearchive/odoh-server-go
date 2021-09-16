@@ -20,6 +20,9 @@ jobs:
       - name: Check out code into the Go module directory
         uses: actions/checkout@v2
 
+      - name: Generate self signed cert
+        run: openssl req -x509 -newkey rsa:4096 -sha256 -days 356 -nodes -keyout key.pem -out cert.pem -subj "/CN=localhost"
+
       - name: Build
         run: go build -v ./...
 
