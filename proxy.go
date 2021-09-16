@@ -60,6 +60,8 @@ func forwardProxyRequest(client *http.Client, targetName string, targetPath stri
 func (p *proxyServer) proxyQueryHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debug("handling proxy request")
 
+	metricProxyQueries.Inc()
+
 	if r.Method != "POST" {
 		p.lastError = errWrongMethod
 		log.Printf(p.lastError.Error())
@@ -101,6 +103,7 @@ func (p *proxyServer) proxyQueryHandler(w http.ResponseWriter, r *http.Request) 
 
 	headerContentType := r.Header.Get("Content-Type")
 
+	metricProxyValidQueries.Inc()
 	response, err := forwardProxyRequest(p.client, targetName, targetPath, body, headerContentType)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)

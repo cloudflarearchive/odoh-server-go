@@ -134,6 +134,7 @@ func (s *targetServer) dohQueryHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	metricTargetValidQueries.Inc()
 	packedResponse, err := s.resolveQueryWithResolver(query, s.resolver)
 	if err != nil {
 		log.Println("Failed resolving DNS query:", err)
@@ -208,6 +209,7 @@ func (s *targetServer) odohQueryHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	metricTargetValidQueries.Inc()
 	packedResponse, err := s.resolveQueryWithResolver(query, s.resolver)
 	if err != nil {
 		log.Println("resolveQueryWithResolver failed:", err)
@@ -234,6 +236,8 @@ func (s *targetServer) odohQueryHandler(w http.ResponseWriter, r *http.Request) 
 
 func (s *targetServer) targetQueryHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debugf("handling target request")
+
+	metricTargetQueries.Inc()
 
 	if r.Header.Get("Content-Type") == dnsMessageContentType {
 		s.dohQueryHandler(w, r)
