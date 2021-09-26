@@ -16,15 +16,17 @@ Usage:
   odohd [OPTIONS]
 
 Application Options:
-  -l, --listen=   Address to listen on (default: localhost:8080)
-  -r, --resolver= Target DNS resolver to query (default: 127.0.0.1:53)
-  -t, --no-tls    Disable TLS
-  -c, --cert=     TLS certificate file
-  -k, --key=      TLS key file
-  --resolver-timeout= Resolver timeout (seconds) (default: 2.5)
-  --proxy-timeout=    Proxy timeout (seconds) (default: 2.5)
-  -v, --verbose   Enable verbose logging
+  -l, --listen=           Address to listen on (default: localhost:8080)
+  -m, --metrics-listen=   Address to listen metrics server on (default: localhost:8081)
+  -r, --resolver=         Target DNS resolver (default: 127.0.0.1:53)
+  -t, --no-tls            Disable TLS
+  -c, --cert=             TLS certificate file
+  -k, --key=              TLS key file
+      --resolver-timeout= Resolver timeout (seconds) (default: 2.5)
+      --proxy-timeout=    Proxy timeout (seconds) (default: 2.5)
+  -v, --verbose           Enable verbose logging
+  -V, --version           Show version and exit
 
 Help Options:
-  -h, --help      Show this help message
+  -h, --help              Show this help message
 ```

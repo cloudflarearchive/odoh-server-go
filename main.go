@@ -46,7 +46,11 @@ const (
 )
 
 // Set by build process
-var version = "dev"
+var (
+	version = "dev"
+	commit  = "unknown"
+	date    = "unknown"
+)
 
 // CLI flags
 var opts struct {
@@ -59,6 +63,7 @@ var opts struct {
 	ResolverTimeout   float32 `long:"resolver-timeout" description:"Resolver timeout (seconds)" default:"2.5"`
 	ProxyTimeout      float32 `long:"proxy-timeout" description:"Proxy timeout (seconds)" default:"2.5"`
 	Verbose           bool    `short:"v" long:"verbose" description:"Enable verbose logging"`
+	ShowVersion       bool    `short:"V" long:"version" description:"Show version and exit"`
 }
 
 func keyPair() (*odoh.ObliviousDoHKeyPair, error) {
@@ -132,6 +137,11 @@ func main() {
 	version == "dev" || opts.Verbose {
 		log.SetLevel(log.DebugLevel)
 		log.Debugln("Verbose logging enabled")
+	}
+
+	if opts.ShowVersion {
+		log.Printf("odohd %s commit %s date %s\n", version, commit, date)
+		os.Exit(0)
 	}
 
 	// Validate TLS cert/key
