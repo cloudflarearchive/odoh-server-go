@@ -2,8 +2,7 @@ before:
   hooks:
     - go mod download
 builds:
-  -
-    env:
+  - env:
       - CGO_ENABLED=0
     goos:
       - linux
@@ -24,3 +23,23 @@ nfpms:
     formats:
       - deb
       - rpm
+dockers:
+  - image_templates: ["ghcr.io/emeraldonion/odohd:{{ .Version }}-amd64"]
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - --platform=linux/amd64
+      - --label=org.opencontainers.image.title=odohd
+      - --label=org.opencontainers.image.description=Oblivious DNS over HTTPS Server
+      - --label=org.opencontainers.image.url=https://github.com/emeraldonion/odohd
+      - --label=org.opencontainers.image.source=https://github.com/emeraldonion/odohd
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.licenses=MIT
+docker_manifests:
+  - name_template: ghcr.io/emeraldonion/odohd:{{ .Version }}
+    image_templates:
+      - ghcr.io/emeraldonion/odohd:{{ .Version }}-amd64
+  - name_template: ghcr.io/emeraldonion/odohd:latest
+    image_templates:
+      - ghcr.io/emeraldonion/odohd:{{ .Version }}-amd64
