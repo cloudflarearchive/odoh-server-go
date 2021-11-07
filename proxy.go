@@ -115,8 +115,13 @@ func (p *proxyServer) proxyQueryHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	//goland:noinspection GoUnhandledErrorResult
-	defer response.Body.Close()
+	defer func(body io.ReadCloser) {
+		err := body.Close()
+		if err != nil {
+			log.Warn(err)
+		}
+	}(response.Body)
+
 	responseBody, err := ioutil.ReadAll(response.Body)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
