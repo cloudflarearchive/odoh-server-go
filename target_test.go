@@ -28,7 +28,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -42,10 +42,6 @@ import (
 type localResolver struct {
 	queries          []string
 	queryResponseMap map[string][]byte // Packed DNS queries to responses
-}
-
-func (r localResolver) name() string {
-	return "localResolver"
 }
 
 func (r localResolver) resolve(query *dns.Msg) (*dns.Msg, error) {
@@ -146,7 +142,7 @@ func TestConfigHandler(t *testing.T) {
 		t.Fatal(fmt.Errorf("failed request with error code: %d", status))
 	}
 
-	body, err := ioutil.ReadAll(rr.Result().Body)
+	body, err := io.ReadAll(rr.Result().Body)
 	if err != nil {
 		t.Fatal("Failed to read body:", err)
 	}
@@ -199,7 +195,7 @@ func TestQueryHandlerDoHWithPOST(t *testing.T) {
 		t.Fatal("invalid content type response")
 	}
 
-	responseBody, err := ioutil.ReadAll(rr.Result().Body)
+	responseBody, err := io.ReadAll(rr.Result().Body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -233,7 +229,7 @@ func TestQueryHandlerDoHWithGET(t *testing.T) {
 		t.Fatal("invalid content type response")
 	}
 
-	responseBody, err := ioutil.ReadAll(rr.Result().Body)
+	responseBody, err := io.ReadAll(rr.Result().Body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -320,7 +316,7 @@ func TestQueryHandlerODoH(t *testing.T) {
 		t.Fatal("invalid content type response")
 	}
 
-	responseBody, err := ioutil.ReadAll(rr.Result().Body)
+	responseBody, err := io.ReadAll(rr.Result().Body)
 	if err != nil {
 		t.Fatal(err)
 	}

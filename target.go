@@ -28,7 +28,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"time"
 
@@ -38,10 +37,8 @@ import (
 )
 
 type targetServer struct {
-	resolver           resolver
-	odohKeyPair        odoh.ObliviousDoHKeyPair
-	serverInstanceName string
-	experimentId       string
+	resolver    resolver
+	odohKeyPair odoh.ObliviousDoHKeyPair
 }
 
 const (
@@ -80,7 +77,7 @@ func (s *targetServer) parseQueryFromRequest(r *http.Request) (*dns.Msg, error) 
 				log.Warn(err)
 			}
 		}(r.Body)
-		encodedMessage, err := ioutil.ReadAll(r.Body)
+		encodedMessage, err := io.ReadAll(r.Body)
 		if err != nil {
 			return nil, err
 		}
@@ -160,7 +157,7 @@ func (s *targetServer) parseObliviousQueryFromRequest(r *http.Request) (odoh.Obl
 			log.Warn(err)
 		}
 	}(r.Body)
-	encryptedMessageBytes, err := ioutil.ReadAll(r.Body)
+	encryptedMessageBytes, err := io.ReadAll(r.Body)
 	if err != nil {
 		return odoh.ObliviousDNSMessage{}, err
 	}

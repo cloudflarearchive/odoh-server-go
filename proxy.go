@@ -27,7 +27,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 
 	log "github.com/sirupsen/logrus"
@@ -46,8 +45,7 @@ var (
 )
 
 func forwardProxyRequest(client *http.Client, targetName string, targetPath string, body []byte, headerContentType string) (*http.Response, error) {
-	targetURL := "https://" + targetName + targetPath
-	req, err := http.NewRequest("POST", targetURL, bytes.NewReader(body))
+	req, err := http.NewRequest("POST", "https://"+targetName+targetPath, bytes.NewReader(body))
 	if err != nil {
 		log.Println("Failed creating target POST request")
 		return nil, errors.New("failed creating target POST request")
@@ -93,7 +91,7 @@ func (p *proxyServer) proxyQueryHandler(w http.ResponseWriter, r *http.Request) 
 			log.Warn(err)
 		}
 	}(r.Body)
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil || len(body) == 0 {
 		p.lastError = errEmptyRequestBody
 		log.Printf(p.lastError.Error())
@@ -122,7 +120,7 @@ func (p *proxyServer) proxyQueryHandler(w http.ResponseWriter, r *http.Request) 
 		}
 	}(response.Body)
 
-	responseBody, err := ioutil.ReadAll(response.Body)
+	responseBody, err := io.ReadAll(response.Body)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return

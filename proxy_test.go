@@ -24,34 +24,12 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
-
-	log "github.com/sirupsen/logrus"
 )
-
-type testTarget struct {
-	expectedStatusCode int
-}
-
-func (t testTarget) handleRequest(w http.ResponseWriter, r *http.Request) {
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-		return
-	}
-
-	headerContentType := r.Header.Get("Content-Type")
-	w.Header().Set("Content-Type", headerContentType)
-	_, err = w.Write(body)
-	if err != nil {
-		log.Warn(err)
-	}
-}
 
 func TestProxyMethod(t *testing.T) {
 	proxy := proxyServer{}
